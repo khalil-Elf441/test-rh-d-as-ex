@@ -1,262 +1,240 @@
 
 {
   "examId": "ex316-4",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 4",
-  "description": "Covers node and cluster maintenance, advanced cloning, and troubleshooting.",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 4: High Availability and Scheduling",
+  "description": "This exam focuses on ensuring VM resilience through high availability configurations, advanced scheduling, and failure recovery.",
   "timeLimit": "4 hours",
   "tasks": [
     {
       "id": "task01",
-      "title": "Perform a major update of OpenShift while Virtualization is running",
+      "title": "Deploy a critical application VM with a guaranteed QoS class",
       "sections": [
         {
-          "title": "Cluster Update Preparation",
-          "notice": "Ensure that the OpenShift Virtualization deployment can withstand a cluster upgrade.",
+          "title": "Guaranteed Quality of Service",
+          "notice": "A low-latency trading application requires dedicated CPU and memory resources.",
           "subtasks": [
-            "Review the OpenShift Virtualization documentation for any pre-requisites for a cluster upgrade.",
-            "Ensure all VMs have live migration enabled and are not pinned to specific nodes.",
-            "Verify that there are enough available nodes in the cluster to handle drained VMs."
-          ]
-        },
-        {
-          "title": "Cluster Update Execution",
-          "notice": "Update the cluster from version 4.x to 4.y.",
-          "subtasks": [
-            "Initiate the OpenShift cluster upgrade through the admin console.",
-            "Monitor the upgrade process, paying attention to the worker nodes as they are drained and rebooted.",
-            "Verify that critical VMs live-migrate successfully and remain available during the update."
+            "Create a VM named 'trading-vm'.",
+            "Set the memory and CPU requests equal to the memory and CPU limits.",
+            "Enable the 'dedicatedCpuPlacement' feature for the VM to ensure CPU pinning.",
+            "Verify the underlying pod for the VM has the 'Guaranteed' QoS class."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Restore a single VM disk from a snapshot",
+      "title": "Configure a pod anti-affinity rule for a pair of load balancer VMs",
       "sections": [
         {
-          "title": "Selective Disk Restore",
-          "notice": "A data disk on a VM was corrupted. Restore only that disk from a snapshot.",
+          "title": "Redundant Load Balancers",
+          "notice": "Deploy two load balancer VMs, 'lb-vm-1' and 'lb-vm-2', and ensure they do not run on the same node.",
           "subtasks": [
-            "Take a new snapshot of the VM to ensure you have a recent backup.",
-            "Identify the name of the PVC corresponding to the corrupted data disk.",
-            "Use the 'oc virt snapshot-restore' command with flags to target only the specific PVC.",
-            "Verify the data on the restored disk is correct."
+            "Deploy two identical VMs named 'lb-vm-1' and 'lb-vm-2', both with the label 'app=loadbalancer'.",
+            "For both VMs, add a required 'podAntiAffinity' rule.",
+            "The rule should prevent scheduling on a node if another pod with the label 'app=loadbalancer' is already present."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Create a VM using a raw image from an HTTP source",
+      "title": "Set up a watchdog for the 'trading-vm'",
       "sections": [
         {
-          "title": "DataVolume from Web",
-          "notice": "Deploy a VM using a Fedora image hosted on a public web server.",
+          "title": "VM Health Monitoring",
+          "notice": "The 'trading-vm' must be automatically rebooted if its OS hangs.",
           "subtasks": [
-            "Create a new DataVolume custom resource.",
-            "In the spec, use the 'http' source type.",
-            "Provide the URL to a valid raw or qcow2 image.",
-            "Create a VM that uses this DataVolume as its root disk."
+            "Add a watchdog device to the 'trading-vm' definition.",
+            "Configure the watchdog to use the 'i6300esb' device model.",
+            "Log into the VM, install the 'watchdog' package, and ensure the service is running."
           ]
         }
       ]
     },
     {
       "id": "task04",
-      "title": "Configure a custom load balancer for a set of VMs using MetalLB",
+      "title": "Configure a liveness probe to check an application within a VM",
       "sections": [
         {
-          "title": "MetalLB Configuration",
-          "notice": "If not installed, configure the MetalLB operator to provide LoadBalancer services.",
+          "title": "Application-Level Health Check",
+          "notice": "The 'trading-vm' runs a service on TCP port 9999. The VM should be restarted if this port is not responding.",
           "subtasks": [
-            "Install the MetalLB Operator.",
-            "Create a MetalLB custom resource, defining an IP address pool for it to manage.",
-            "Create a BGP or L2 advertisement resource to announce the IPs."
-          ]
-        },
-        {
-          "title": "Service Exposure",
-          "notice": "Expose a cluster of three web VMs via a single external IP.",
-          "subtasks": [
-            "Ensure all three VMs share a common label.",
-            "Create a Service of type 'LoadBalancer'.",
-            "Use a selector to target the three web VMs.",
-            "Verify the service gets an external IP from the MetalLB pool and that traffic is balanced."
+            "Add a 'livenessProbe' to the 'trading-vm' definition.",
+            "Configure the probe to perform a TCP socket check on port 9999.",
+            "Set the initial delay to 120 seconds and the failure threshold to 5."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Enable and configure the hostpath provisioner",
+      "title": "Set the eviction strategy for the load balancer VMs",
       "sections": [
         {
-          "title": "Hostpath Provisioner Setup",
-          "notice": "Configure the hostpath provisioner to provide dynamic local storage.",
+          "title": "Node Failure Recovery Strategy",
+          "notice": "The load balancer VMs must be live-migrated to another node if their current node fails but is still responsive.",
           "subtasks": [
-            "Edit the HyperConverged custom resource.",
-            "Enable the 'hostpathProvisioner' feature gate.",
-            "Define a storage pool, specifying a path on the host to be used for volumes.",
-            "Verify that a new StorageClass for the hostpath provisioner is created."
+            "Edit both 'lb-vm-1' and 'lb-vm-2'.",
+            "Set the 'evictionStrategy' for both VMs to 'LiveMigrateIfPossible'."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Use the hostpath provisioner to deploy a VM",
+      "title": "Simulate a node failure and observe VM recovery",
       "sections": [
         {
-          "title": "Dynamic Local Storage",
-          "notice": "Deploy a VM that uses dynamically provisioned local storage.",
+          "title": "Failure Simulation",
+          "notice": "Test the high availability configuration by simulating a node failure.",
           "subtasks": [
-            "Create a new PVC, specifying the hostpath provisioner's StorageClass.",
-            "Create a new VM that uses this PVC for its root disk.",
-            "Verify the VM runs and that its disk image is stored in the configured hostpath directory on a node."
+            "Identify the node where 'lb-vm-1' is running.",
+            "Cordon and drain the node, simulating a graceful shutdown.",
+            "Observe that 'lb-vm-1' is live-migrated to another node.",
+            "Forcibly shut down the node where 'lb-vm-2' is running and observe its recovery on a new node."
           ]
         }
       ]
     },
     {
       "id": "task07",
-      "title": "Troubleshoot a VM that fails to live migrate",
+      "title": "Use taints and tolerations to dedicate a node for GPU workloads",
       "sections": [
         {
-          "title": "Debugging Migration Failure",
-          "notice": "A VM is stuck in 'Migration Failed' state. Identify and fix the cause.",
+          "title": "Node Tainting and Tolerations",
+          "notice": "A specific node has a GPU and should only be used by VMs that explicitly tolerate it.",
           "subtasks": [
-            "Examine the logs of the 'virt-handler' pods on the source and destination nodes.",
-            "Check the VMI description for events related to the migration failure.",
-            "Identify a common cause, such as a VM using a HostPath PV, which prevents migration.",
-            "Rectify the issue (e.g., change storage) and successfully re-run the migration."
+            "Add a taint 'gpu=true:NoSchedule' to one of your worker nodes.",
+            "Create a new VM named 'gpu-workload-vm'.",
+            "Add a toleration to the VM's specification that matches the taint.",
+            "Verify the VM successfully schedules on the tainted node."
           ]
         }
       ]
     },
     {
       "id": "task08",
-      "title": "Add a GPU from a host node to a VM",
+      "title": "Configure a custom route to expose a service on a specific path",
       "sections": [
         {
-          "title": "GPU Passthrough",
-          "notice": "Provide a VM with direct access to a physical GPU for compute tasks.",
+          "title": "Path-Based Routing",
+          "notice": "Expose a service running on 'gpu-workload-vm' via a custom route at path '/gpu-api'.",
           "subtasks": [
-            "Ensure the Node Feature Discovery (NFD) and GPU operators are installed.",
-            "Configure the host node to allow GPU passthrough.",
-            "Edit the VM and add a 'gpus' device to its hardware specification.",
-            "Boot the VM and verify the GPU is visible inside the guest OS."
+            "Create a ClusterIP service for 'gpu-workload-vm' on port 8080.",
+            "Create a Route resource.",
+            "Configure the route to direct traffic for the path '/gpu-api' to the created service.",
+            "Verify the service is accessible via the route's host and path."
           ]
         }
       ]
     },
     {
       "id": "task09",
-      "title": "Set a custom MAC address for a VM network interface",
+      "title": "Live migrate a VM with affinity rules",
       "sections": [
         {
-          "title": "Network Customization",
-          "notice": "A legacy application inside a VM requires a fixed MAC address to be licensed.",
+          "title": "Constrained Live Migration",
+          "notice": "The 'trading-vm' has strict node affinity. Test that live migration respects these rules.",
           "subtasks": [
-            "Edit the 'VirtualMachine' object.",
-            "Find the network interface that needs the custom MAC address.",
-            "Add the 'macAddress' field and specify a valid, unique MAC address.",
-            "Start the VM and verify inside the guest OS that the interface has the correct MAC."
+            "Ensure 'trading-vm' is pinned to a specific node using a node selector.",
+            "Attempt to live migrate the VM to a different, non-matching node. This should fail.",
+            "Modify the node affinity rules to allow a second node.",
+            "Successfully live migrate the VM to the newly allowed node."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Clone a DataVolume without creating a VM",
+      "title": "Clone a VM's disk for backup using DataVolumes",
       "sections": [
         {
-          "title": "Disk-Only Cloning",
-          "notice": "You need a copy of a VM's root disk for offline analysis.",
+          "title": "Manual Disk Backup",
+          "notice": "Create a point-in-time copy of the 'trading-vm's' primary disk without using OADP.",
           "subtasks": [
-            "Identify the DataVolume associated with the VM's root disk.",
-            "Create a new DataVolume custom resource.",
-            "In the spec, use the 'source' field and specify the source DataVolume.",
-            "Verify the new DataVolume is created and populated with the cloned disk image."
+            "Identify the PVC associated with the 'trading-vm's' root disk.",
+            "Create a new DataVolume resource named 'trading-disk-clone'.",
+            "Configure the source of the DataVolume to be the PVC of the trading VM.",
+            "Verify that a new PVC is created and populated with a clone of the disk."
           ]
         }
       ]
     },
     {
       "id": "task11",
-      "title": "Configure a VM to boot from a specific kernel and initrd image",
+      "title": "Configure different users with different levels of access",
       "sections": [
         {
-          "title": "Custom Boot Configuration",
-          "notice": "A troubleshooting VM needs to boot with a custom-built kernel.",
+          "title": "Role-Based Access Control (RBAC)",
+          "notice": "Create a user 'viewer' who can only see VMs and a user 'editor' who can start/stop them.",
           "subtasks": [
-            "Place the custom kernel and initrd files in a location accessible to the VM (e.g., on a PVC).",
-            "Edit the VirtualMachine object.",
-            "Add a 'kernelBoot' section to the spec.",
-            "Specify the paths to the custom kernel and initrd images."
+            "Create two new users, 'viewer' and 'editor'.",
+            "Assign the default 'view' role to the 'viewer' user for your project.",
+            "Assign the 'edit' role to the 'editor' user for your project.",
+            "Log in as each user and verify their permissions on virtual machine resources."
           ]
         }
       ]
     },
     {
       "id": "task12",
-      "title": "Perform an emergency shutdown of a non-responsive VM",
+      "title": "Update the OpenShift Virtualization Operator",
       "sections": [
         {
-          "title": "Force Stop",
-          "notice": "A VM is not responding to a normal stop command.",
+          "title": "Operator Update",
+          "notice": "Perform a manual update of the OpenShift Virtualization Operator to a newer version.",
           "subtasks": [
-            "Attempt to stop the VM using 'oc virt stop <vm-name>'.",
-            "After it fails to stop in a timely manner, use the '--force' flag.",
-            "Specify a grace period of 0 seconds to immediately terminate the VM pod.",
-            "Verify the VM and its associated pod are terminated."
+            "Examine the Operator's subscription details.",
+            "If an upgrade is available, approve the installation plan.",
+            "Monitor the upgrade process and ensure all virtualization components are updated without errors."
           ]
         }
       ]
     },
     {
       "id": "task13",
-      "title": "Limit the number of concurrent live migrations per node",
+      "title": "Use cloud-init to run arbitrary commands on boot",
       "sections": [
         {
-          "title": "Resource Throttling",
-          "notice": "Prevent live migrations from overwhelming node resources.",
+          "title": "Custom Boot Commands",
+          "notice": "Deploy a VM that writes a file to /tmp on its first boot.",
           "subtasks": [
-            "Edit the 'HyperConverged' custom resource.",
-            "Navigate to the 'liveMigrationConfig' section.",
-            "Set the 'parallelMigrationsPerCluster' and 'parallelOutboundMigrationsPerNode' to a lower value (e.g., 2).",
-            "Apply the change and verify the configuration is updated."
+            "Create a new VM from a generic template.",
+            "Use cloud-init user data.",
+            "Add a 'runcmd' block that executes 'echo hello-world > /tmp/cloud-init-test.txt'.",
+            "Boot the VM and verify the file exists with the correct content."
           ]
         }
       ]
     },
     {
       "id": "task14",
-      "title": "Create a VM that uses multiple disks from different storage classes",
+      "title": "Configure a VM to have affinity to a specific geographical region",
       "sections": [
         {
-          "title": "Tiered Storage VM",
-          "notice": "Deploy a VM with its OS on a fast SSD-based StorageClass and its data on a slower, larger HDD-based StorageClass.",
+          "title": "Preferred Node Affinity",
+          "notice": "A VM should prefer to run on nodes in the 'east' region, but can run elsewhere if no such nodes are available.",
           "subtasks": [
-            "Create two PVCs, 'os-disk-pvc' and 'data-disk-pvc', using two different StorageClasses.",
-            "Create a new VirtualMachine object.",
-            "Define two volumes, one for each PVC.",
-            "Attach the 'os-disk-pvc' as the boot disk and the 'data-disk-pvc' as a secondary data disk."
+            "Label at least one worker node with 'region=east'.",
+            "Create a new VM.",
+            "Add a 'nodeAffinity' rule to the VM.",
+            "Configure a 'preferredDuringSchedulingIgnoredDuringExecution' rule that gives a high weight to nodes with the 'region=east' label."
           ]
         }
       ]
     },
     {
       "id": "task15",
-      "title": "Troubleshoot a VM stuck in 'Starting' state",
+      "title": "Troubleshoot a VM that fails to start due to resource constraints",
       "sections": [
         {
-          "title": "Debugging Startup Issues",
-          "notice": "A newly created VM is not becoming ready. Find the cause.",
+          "title": "Debugging Scheduling Failures",
+          "notice": "A VM is stuck in a 'Pending' state. Diagnose and fix the issue.",
           "subtasks": [
-            "Describe the VirtualMachineInstance (VMI) and look for error events.",
-            "Check the logs of the 'virt-launcher' pod for the VM.",
-            "Examine the VM's console logs for kernel panic or OS-level errors.",
-            "Identify and fix the issue (e.g., a misconfigured cloud-init script or a corrupted disk image)."
+            "Create a new VM that requests an impossible amount of memory (e.g., 1000Gi).",
+            "Observe that the VM fails to schedule.",
+            "Use 'oc describe' on the VMI or its pod to see events related to scheduling failure.",
+            "Correct the VM's memory request to a reasonable value and verify that it starts."
           ]
         }
       ]

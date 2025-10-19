@@ -1,248 +1,230 @@
 
 {
   "examId": "ex316-5",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 5",
-  "description": "A comprehensive review of all major domains, with a focus on integration and automation.",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 5: Full Spectrum Review",
+  "description": "This exam is a comprehensive review of all major domains, requiring you to switch between different skill sets quickly.",
   "timeLimit": "4 hours",
   "tasks": [
     {
       "id": "task01",
-      "title": "Automate VM deployment using a GitOps workflow",
+      "title": "Deploy a web server VM and configure its service",
       "sections": [
         {
-          "title": "ArgoCD/GitOps Setup",
-          "notice": "Configure OpenShift GitOps (ArgoCD) to manage virtual machine definitions from a Git repository.",
+          "title": "VM and Service Provisioning",
+          "notice": "Deploy a VM named 'web-final-vm' and expose it internally.",
           "subtasks": [
-            "Install the OpenShift GitOps Operator.",
-            "Create a Git repository containing a YAML definition for a VirtualMachine.",
-            "Create an ArgoCD 'Application' that points to your Git repository.",
-            "Verify that ArgoCD automatically deploys the VM into the cluster."
+            "Provision 'web-final-vm' from the RHEL9 template with 2 CPUs and 2Gi memory.",
+            "Inside the VM, install the 'httpd' package and start the service.",
+            "Create a ClusterIP service named 'web-final-svc' that exposes port 80 on the VM."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Change the CPU model of a running VM",
+      "title": "Configure a custom Route for the web server",
       "sections": [
         {
-          "title": "CPU Feature Update",
-          "notice": "Update a VM's CPU model to 'host-passthrough' to expose all host CPU features.",
+          "title": "Customized External Access",
+          "notice": "Expose the 'web-final-svc' service externally at the hostname 'webapp-final.apps.example.com'.",
           "subtasks": [
-            "Stop the target virtual machine.",
-            "Edit the VirtualMachine object and set the 'cpu.model' to 'host-passthrough'.",
-            "Start the virtual machine.",
-            "Log into the guest OS and verify that more advanced CPU flags are now visible."
+            "Create a Route resource that targets the 'web-final-svc' service.",
+            "Set the hostname of the route to 'webapp-final.apps.example.com'.",
+            "Verify the web server is accessible via this custom hostname."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Connect a VM to a software-defined network (OVN-Kubernetes)",
+      "title": "Add a secondary data disk to the web server VM",
       "sections": [
         {
-          "title": "OVN Integration",
-          "notice": "Create a secondary network for VMs that is managed by OVN-Kubernetes.",
+          "title": "Add Persistent Storage",
+          "notice": "Add a 15Gi disk for web content.",
           "subtasks": [
-            "Create a 'NetworkAttachmentDefinition' that uses the 'ovn-k8s-cni-overlay' CNI type.",
-            "Deploy a new VM and attach it to this OVN-based network.",
-            "Verify the VM gets an IP address from the OVN-managed subnet."
+            "Create a 15Gi PVC named 'web-content-pvc'.",
+            "Add the PVC as a new data volume to the 'web-final-vm'.",
+            "Log into the VM and create a filesystem on the new disk."
           ]
         }
       ]
     },
     {
       "id": "task04",
-      "title": "Backup all VMs in a specific namespace using OADP label selectors",
+      "title": "Create a snapshot of the web server VM",
       "sections": [
         {
-          "title": "Bulk Backup",
-          "notice": "Create a single backup job that captures all VMs in the 'production' namespace.",
+          "title": "State Backup",
+          "notice": "Take a snapshot of 'web-final-vm' before making further changes.",
           "subtasks": [
-            "Ensure all VMs in the 'production' namespace have a common label, e.g., 'environment: prod'.",
-            "Create a 'Backup' custom resource.",
-            "Instead of listing resources, use a 'labelSelector' to target 'environment: prod'.",
-            "Verify the backup completes and includes all expected VMs."
+            "Create a VirtualMachineSnapshot named 'web-final-snapshot' for the VM.",
+            "Wait for the snapshot to be ready to use."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Create a golden template from a running VM",
+      "title": "Clone the web server VM for a development environment",
       "sections": [
         {
-          "title": "Template Creation from Live VM",
-          "notice": "Create a template from a live, running VM without shutting it down.",
+          "title": "Cloning",
+          "notice": "Create a clone named 'web-dev-vm'.",
           "subtasks": [
-            "Ensure the source VM has a snapshot-capable storage class.",
-            "Use the 'oc process' command on the default templates to generate a new template YAML.",
-            "Modify the YAML to use the running VM's PVC as the source for the template's boot disk.",
-            "Create the new template and deploy a test VM from it."
+            "Create a clone of 'web-final-vm'.",
+            "Name the new VM 'web-dev-vm'.",
+            "Verify the new VM starts and is a perfect copy."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Perform a mass live migration of all VMs from a node",
+      "title": "Configure a secondary network for the development VM",
       "sections": [
         {
-          "title": "Node Evacuation",
-          "notice": "A node is showing hardware errors. Evacuate all VMs from it immediately.",
+          "title": "Isolate Development VM",
+          "notice": "Connect 'web-dev-vm' to an isolated bridge network named 'dev-net'.",
           "subtasks": [
-            "Use the 'oc virt drain' command on the target node.",
-            "Monitor the VMI objects to ensure they all start migrating.",
-            "Once all VMs are migrated, place the node into maintenance mode."
+            "Create a NetworkAttachmentDefinition for a bridge network named 'dev-net'.",
+            "Edit 'web-dev-vm' to add a new network interface.",
+            "Attach the new interface to the 'dev-net' NAD."
           ]
         }
       ]
     },
     {
       "id": "task07",
-      "title": "Clone a VM and change its network configuration in a single step",
+      "title": "Create a custom template from the development VM",
       "sections": [
         {
-          "title": "Clone and Reconfigure",
-          "notice": "Clone a production VM to a staging environment, but attach it to a different network.",
+          "title": "Template Generation",
+          "notice": "Create a template named 'dev-webtier-template' from 'web-dev-vm'.",
           "subtasks": [
-            "Create a 'VirtualMachineClone' custom resource.",
-            "Specify the source VM and the new VM name.",
-            "Use the 'networkPatches' field to modify the network interface configuration for the clone.",
-            "Verify the cloned VM starts with the new network settings."
+            "Shut down the 'web-dev-vm'.",
+            "Generate a new template from the VM.",
+            "Ensure the template is named 'dev-webtier-template'."
           ]
         }
       ]
     },
     {
       "id": "task08",
-      "title": "Configure a VM to have a dedicated CPU core",
+      "title": "Use the new template to deploy a QA VM with cloud-init",
       "sections": [
         {
-          "title": "CPU Pinning",
-          "notice": "A real-time application VM requires exclusive access to a CPU core.",
+          "title": "Template Deployment and Customization",
+          "notice": "Deploy 'web-qa-vm' and use cloud-init to set its hostname.",
           "subtasks": [
-            "Enable the CPU manager on the cluster nodes.",
-            "Edit the VirtualMachine object.",
-            "Set the 'dedicatedCpuPlacement' field to 'true'.",
-            "Request a specific number of CPUs (e.g., 1).",
-            "Verify the VMI pod has the 'Guaranteed' QoS class and is pinned to a specific core."
+            "Deploy a new VM named 'web-qa-vm' from 'dev-webtier-template'.",
+            "Use cloud-init user data to set the hostname to 'qa.example.com'.",
+            "Verify the VM boots and has the correct hostname."
           ]
         }
       ]
     },
     {
       "id": "task09",
-      "title": "Restore a VM to a different StorageClass",
+      "title": "Perform a live migration of the production web server",
       "sections": [
         {
-          "title": "Storage Tier Migration via Restore",
-          "notice": "Move a VM from slow HDD storage to fast SSD storage by restoring it.",
+          "title": "Live Migration",
+          "notice": "Move 'web-final-vm' to a different worker node without downtime.",
           "subtasks": [
-            "Take a backup of the VM using OADP.",
-            "Create a 'Restore' custom resource.",
-            "In the restore spec, add a 'storageClassMapping' field.",
-            "Map the source StorageClass to the new, faster StorageClass.",
-            "Verify the restored VM is running on volumes from the new StorageClass."
+            "Initiate a live migration for 'web-final-vm'.",
+            "Monitor the migration and verify it completes successfully.",
+            "Confirm the VM is running on a new node."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Attach a secret to a VM as a virtual floppy drive",
+      "title": "Configure a readiness probe for the production web server",
       "sections": [
         {
-          "title": "Secure Data Injection",
-          "notice": "Pass a license key to a VM securely without storing it on the main disk.",
+          "title": "Health Check",
+          "notice": "Add a readiness probe to 'web-final-vm' to verify httpd is running.",
           "subtasks": [
-            "Create a Kubernetes Secret containing the license key.",
-            "Edit the VirtualMachine object.",
-            "Add a new volume that references the secret.",
-            "Add a 'floppy' disk to the VM and attach the secret volume to it.",
-            "Boot the VM and verify the floppy drive is present with the secret data."
+            "Edit the 'web-final-vm' resource.",
+            "Add a readiness probe that performs an HTTP GET request on port 80.",
+            "Verify the VMI enters the 'Ready' state."
           ]
         }
       ]
     },
     {
       "id": "task11",
-      "title": "Configure a VM to automatically restart on failure",
+      "title": "Backup the production web server using OADP",
       "sections": [
         {
-          "title": "Restart Policy",
-          "notice": "Ensure a critical VM is always running, even if the guest OS crashes.",
+          "title": "OADP Backup",
+          "notice": "Perform a full backup of 'web-final-vm'.",
           "subtasks": [
-            "Edit the VirtualMachine object.",
-            "Set the 'running' field to 'true'.",
-            "Set the 'runStrategy' to 'Always'.",
-            "Test the configuration by manually killing the 'qemu' process inside the virt-launcher pod and watch the VM restart."
+            "Ensure the OADP operator is configured.",
+            "Create a 'Backup' resource that includes the 'web-final-vm'.",
+            "Verify the backup operation completes successfully."
           ]
         }
       ]
     },
     {
       "id": "task12",
-      "title": "Expose a set of VMs using a Headless Service",
+      "title": "Restore the backup to a new VM",
       "sections": [
         {
-          "title": "StatefulSet-like Networking",
-          "notice": "Provide stable, unique network identifiers for a cluster of database VMs.",
+          "title": "OADP Restore",
+          "notice": "Restore the backup of 'web-final-vm' to a new VM named 'web-restored-vm'.",
           "subtasks": [
-            "Ensure all database VMs share a common label.",
-            "Create a new Service.",
-            "Set the 'clusterIP' to 'None' to make it headless.",
-            "Use a selector to target the database VMs.",
-            "Verify that DNS lookups for the service return the individual IP addresses of each VM."
+            "Create a 'Restore' resource from the backup.",
+            "Configure the restore to change the name of the restored VM to 'web-restored-vm'.",
+            "Verify the new VM is created and functional."
           ]
         }
       ]
     },
     {
       "id": "task13",
-      "title": "Enable and use hugepages for a high-performance VM",
+      "title": "Prepare a node for maintenance by draining it",
       "sections": [
         {
-          "title": "Memory Optimization",
-          "notice": "Improve the performance of a database VM by using hugepages.",
+          "title": "Node Maintenance",
+          "notice": "A worker node needs to be rebooted. Safely drain it of all VMs.",
           "subtasks": [
-            "Configure the OpenShift nodes to allocate a number of hugepages.",
-            "Edit the VirtualMachine object.",
-            "In the 'domain.memory' section, specify a 'hugepages' size (e.g., 2Mi).",
-            "Start the VM and verify it is using hugepages from the node."
+            "Select a worker node running at least one VM.",
+            "Use 'oc adm drain' to gracefully evict all VMs.",
+            "Verify the VMs are migrated to other nodes."
           ]
         }
       ]
     },
     {
       "id": "task14",
-      "title": "Create a DataVolume from a PVC that already exists",
+      "title": "Configure anti-affinity for a new pair of database VMs",
       "sections": [
         {
-          "title": "Adopting Existing Volumes",
-          "notice": "An existing PVC contains a disk image. Create a VM that uses it.",
+          "title": "High Availability Pair",
+          "notice": "Deploy two new database VMs, 'db-a' and 'db-b', and ensure they run on separate nodes.",
           "subtasks": [
-            "Create a new DataVolume resource.",
-            "In the spec, use the 'source' field and specify the 'pvc' source type.",
-            "Provide the name and namespace of the existing PVC.",
-            "Create a VM that uses this DataVolume as its disk."
+            "Deploy 'db-a' with the label 'db-pair=ha'.",
+            "Deploy 'db-b' with the same label.",
+            "Add a required pod anti-affinity rule to both VMs to prevent them from co-locating."
           ]
         }
       ]
     },
     {
       "id": "task15",
-      "title": "Troubleshoot a VM with a 'CrashLoopBackOff' status",
+      "title": "Configure a service to load balance between the new database VMs",
       "sections": [
         {
-          "title": "Pod-Level Debugging",
-          "notice": "The virt-launcher pod for a VM is crashing repeatedly. Find out why.",
+          "title": "Load Balancing",
+          "notice": "Create a single service that balances traffic across 'db-a' and 'db-b'.",
           "subtasks": [
-            "Use 'oc get pods' to find the crashing virt-launcher pod.",
-            "Use 'oc logs --previous' to view the logs from the last failed container instance.",
-            "Examine the logs for errors related to permissions, missing resources, or invalid configuration.",
-            "Describe the pod and look for events that indicate why it is failing to schedule or start."
+            "Create a ClusterIP service named 'db-ha-svc'.",
+            "Configure a selector that targets both VMs using the 'db-pair=ha' label.",
+            "Verify the service endpoints include the IP addresses of both VMs."
           ]
         }
       ]

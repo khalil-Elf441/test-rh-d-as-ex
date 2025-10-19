@@ -1,255 +1,247 @@
 
 {
   "examId": "ex316-6",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 6",
-  "description": "Final challenge focusing on complex networking, multi-node configurations, and failure recovery.",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 6: Troubleshooting and Advanced Features",
+  "description": "This final exam tests your ability to troubleshoot complex issues and use advanced or less common features of OpenShift Virtualization.",
   "timeLimit": "4 hours",
   "tasks": [
     {
       "id": "task01",
-      "title": "Configure SR-IOV networking for a VM",
+      "title": "Troubleshoot a VM that fails to start due to a misconfigured NetworkPolicy",
       "sections": [
         {
-          "title": "SR-IOV Operator Setup",
-          "notice": "Enable and configure the SR-IOV Network Operator to expose physical functions (PFs) to VMs.",
+          "title": "Debugging Network Policy",
+          "notice": "A VM named 'backend-api' is unable to start correctly because it cannot reach a required licensing service. A NetworkPolicy is suspected.",
           "subtasks": [
-            "Install the SR-IOV Network Operator.",
-            "Create an 'SriovNetworkNodePolicy' to configure a specific PF on your worker nodes.",
-            "Wait for the operator to create the corresponding Virtual Functions (VFs).",
-            "Create an 'SriovNetwork' custom resource to make the VFs available as a network attachment."
-          ]
-        },
-        {
-          "title": "VM Attachment",
-          "notice": "Attach a VM to an SR-IOV virtual function for high-performance networking.",
-          "subtasks": [
-            "Create a NetworkAttachmentDefinition for the SR-IOV network.",
-            "Deploy a new VM and add a network interface that references the SR-IOV NAD.",
-            "Verify inside the guest OS that a new network interface with high throughput is available."
+            "Deploy the 'backend-api' VM. It is pre-configured to require network access on boot.",
+            "Observe that the VM fails its readiness checks and enters a loop.",
+            "Inspect the NetworkPolicies in the namespace and identify one that is blocking egress traffic from the VM.",
+            "Modify or delete the NetworkPolicy to allow the necessary egress traffic, allowing the VM to start."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Restore a backup to a different namespace",
+      "title": "Access a VM with a broken network interface using its serial console",
       "sections": [
         {
-          "title": "Cross-Namespace Restore",
-          "notice": "Restore a backup of a production VM into a testing namespace.",
+          "title": "Serial Console Access",
+          "notice": "An administrator has accidentally misconfigured the network interface of 'backend-api' from within the guest OS. You can no longer SSH into it.",
           "subtasks": [
-            "Take a backup of a VM in the 'default' namespace.",
-            "Create a 'Restore' custom resource.",
-            "In the restore spec, use the 'namespaceMapping' field to map the source namespace to the target 'testing' namespace.",
-            "Verify the restored VM appears in the 'testing' namespace."
+            "Use the 'virtctl console' command to access the serial console of the 'backend-api' VM.",
+            "Log into the VM using the console.",
+            "Diagnose and repair the network configuration file within the guest OS.",
+            "Reboot the VM and verify that it now has network connectivity."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Create a template that deploys a VM with multiple network interfaces",
+      "title": "Upload a custom disk image to a PVC using 'virtctl'",
       "sections": [
         {
-          "title": "Multi-NIC Template",
-          "notice": "Create a template for a firewall VM that requires a public, private, and management interface.",
+          "title": "CLI Image Upload",
+          "notice": "You have been given a custom OS image file named 'custom.qcow2'. Upload it to a PVC to be used by a new VM.",
           "subtasks": [
-            "Create three different NetworkAttachmentDefinitions for your networks.",
-            "Create a new VM template.",
-            "In the template's VM spec, define three network interfaces.",
-            "Define three corresponding networks, each referencing one of the NADs."
+            "Create a new, blank PVC named 'custom-image-pvc' of sufficient size.",
+            "Use the 'virtctl image-upload' command to upload the 'custom.qcow2' file to the PVC.",
+            "Monitor the upload progress to completion.",
+            "Deploy a new VM that uses this PVC as its boot disk."
           ]
         }
       ]
     },
     {
       "id": "task04",
-      "title": "Perform a cold migration of a VM",
+      "title": "Configure a VM to use SR-IOV for high-performance networking",
       "sections": [
         {
-          "title": "Offline Migration",
-          "notice": "A VM cannot be live migrated due to its configuration. Move it to another node while it is offline.",
+          "title": "SR-IOV Configuration",
+          "notice": "A network-intensive application requires the low latency provided by an SR-IOV virtual function.",
           "subtasks": [
-            "Stop the virtual machine.",
-            "Add a 'nodeSelector' to the VM object to target a different node.",
-            "Start the virtual machine.",
-            "Verify it starts successfully on the new node."
+            "Ensure the SR-IOV Network Operator is installed and has configured VFs on a worker node.",
+            "Create a NetworkAttachmentDefinition for the SR-IOV network pool.",
+            "Create a new VM named 'sriov-vm'.",
+            "Add a network interface to the VM that is attached to the SR-IOV NAD."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Configure a custom health probe that runs a script inside the VM",
+      "title": "Troubleshoot a live migration that fails due to incompatible CPU models",
       "sections": [
         {
-          "title": "Guest Agent Script Probe",
-          "notice": "Create a readiness probe that checks if a specific process is running inside the guest OS.",
+          "title": "Debugging Migration Failure",
+          "notice": "A live migration is failing for a VM with a specific CPU model.",
           "subtasks": [
-            "Ensure the QEMU guest agent is running on the VM.",
-            "Edit the VirtualMachine object and add a readiness probe.",
-            "Use the 'guestAgentPing' probe type.",
-            "This probe implicitly checks the health of the guest agent, which can be used as a proxy for guest health."
+            "Create a VM with a CPU model that is not available on all nodes (e.g., by specifying a feature flag).",
+            "Attempt to live migrate the VM to a node with an incompatible CPU.",
+            "Examine the VMI events and virt-handler logs to diagnose the failure reason.",
+            "Change the VM's CPU model to a more generic one (like 'host-model') and successfully complete the migration."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Clone a VM from a snapshot",
+      "title": "Perform an emergency, forceful stop of a non-responsive VM",
       "sections": [
         {
-          "title": "Offline Cloning",
-          "notice": "Create a new VM from a point-in-time snapshot of another VM.",
+          "title": "Force Deletion",
+          "notice": "A VM is stuck in the 'Terminating' state and is not shutting down.",
           "subtasks": [
-            "Take a snapshot of the source VM.",
-            "Create a new DataVolume resource.",
-            "For the source, specify the 'snapshot' source type, providing the name of the VirtualMachineSnapshot.",
-            "Create a new VM that uses this DataVolume as its boot disk."
+            "Attempt to stop a VM using the standard 'virtctl stop' command.",
+            "When it fails to stop, use the '--force' option with a grace period of 0 seconds.",
+            "Verify the VMI and its associated pod are forcefully deleted."
           ]
         }
       ]
     },
     {
       "id": "task07",
-      "title": "Handle a full node failure where VMs were running",
+      "title": "Attach a secret to a VM as a virtual floppy disk",
       "sections": [
         {
-          "title": "Disaster Recovery Simulation",
-          "notice": "A node has failed and is unrecoverable. Force the VMs that were on it to restart elsewhere.",
+          "title": "Secure Credential Injection",
+          "notice": "A legacy application needs a license key file at boot time. Provide it securely using a secret.",
           "subtasks": [
-            "Identify the VMs that were running on the failed node.",
-            "If using RWX storage, the VMs should restart automatically. If not, manual intervention is needed.",
-            "For RWO volumes, delete the stuck VMI objects to allow the VM controller to reschedule them.",
-            "The underlying PVCs will be detached and reattached on a new node."
+            "Create a Kubernetes Secret containing the license key data.",
+            "Create a new VM.",
+            "Define a volume in the VM spec that references the secret.",
+            "Attach the volume as a 'floppy' disk device.",
+            "Boot the VM and verify the license key is readable from the floppy drive."
           ]
         }
       ]
     },
     {
       "id": "task08",
-      "title": "Configure a VM with a trusted platform module (vTPM) device",
+      "title": "Configure a VM to use a container image as its root disk",
       "sections": [
         {
-          "title": "Virtual TPM",
-          "notice": "Add a vTPM to a VM to enable features like BitLocker or secure boot inside the guest.",
+          "title": "ContainerDisk VM",
+          "notice": "Deploy a lightweight VM whose operating system is stored in a container image.",
           "subtasks": [
-            "Edit the VirtualMachine object.",
-            "In the 'domain.devices' section, add a 'tpm' device.",
-            "Start the VM and verify that a TPM device is visible to the guest operating system."
+            "Find a suitable container disk image from a public registry.",
+            "Create a new VirtualMachine resource.",
+            "In the volumes section, define a 'containerDisk' volume pointing to the image URL.",
+            "Configure this volume as the VM's boot disk and start the VM."
           ]
         }
       ]
     },
     {
       "id": "task09",
-      "title": "Balance a VM workload across the cluster",
+      "title": "Manually edit the HyperConverged resource to enable an alpha feature",
       "sections": [
         {
-          "title": "Descheduler Configuration",
-          "notice": "Install and configure the descheduler to rebalance VMs that are unevenly packed onto nodes.",
+          "title": "Feature Gates",
+          "notice": "Enable the 'withHostPassthroughCPU' feature gate to allow host-passthrough CPU model.",
           "subtasks": [
-            "Install the Descheduler Operator.",
-            "Create a 'KubeDescheduler' custom resource.",
-            "Enable a profile like 'AffinityAndTaints' to trigger rebalancing.",
-            "Manually stack several VMs onto one node and watch the descheduler migrate them."
+            "Edit the 'HyperConverged' custom resource in the 'openshift-cnv' namespace.",
+            "Add the 'withHostPassthroughCPU' feature gate to the spec.",
+            "Save the changes and wait for the virtualization components to redeploy.",
+            "Create a new VM with the 'host-passthrough' CPU model and verify it works."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Access the serial console of a running VM",
+      "title": "Troubleshoot a VM that has a 'CrashLoopBackOff' status",
       "sections": [
         {
-          "title": "Out-of-Band Access",
-          "notice": "The network of a VM is misconfigured. Access it via the serial console to fix it.",
+          "title": "Pod-Level Debugging",
+          "notice": "The virt-launcher pod for a VM is continuously crashing. Find and fix the root cause.",
           "subtasks": [
-            "Use the 'oc virt console' command to connect to the VM.",
-            "Log in using the guest OS credentials.",
-            "Perform administrative tasks to fix the networking issue.",
-            "Disconnect from the console."
+            "Create a VM that references a non-existent PVC as its disk to induce an error.",
+            "Observe the 'CrashLoopBackOff' status on the virt-launcher pod.",
+            "Use 'oc logs' on the pod to find the error message related to the missing volume.",
+            "Correct the VM definition to point to a valid PVC and verify it starts."
           ]
         }
       ]
     },
     {
       "id": "task11",
-      "title": "Upload a local disk image to a PVC for a new VM",
+      "title": "Use 'virtctl' to expose a VM service on a random port",
       "sections": [
         {
-          "title": "Image Upload",
-          "notice": "You have a custom qcow2 image on your local machine. Upload it to create a new VM.",
+          "title": "CLI Service Exposure",
+          "notice": "Quickly expose a port on a VM for temporary access without writing a full Service manifest.",
           "subtasks": [
-            "Install the 'virtctl' client tool.",
-            "Create a blank PVC to hold the disk image.",
-            "Use the 'virtctl image-upload' command, specifying the PVC and the path to your local image file.",
-            "Create a VM that uses the populated PVC as its disk."
+            "Create a simple VM with a service running on a known port (e.g., port 8000).",
+            "Use the 'virtctl expose' command.",
+            "Specify the VM name, the target port, and set the type to 'NodePort'.",
+            "Verify a service is created and the VM is accessible via the assigned node port."
           ]
         }
       ]
     },
     {
       "id": "task12",
-      "title": "Configure a VM to have its MAC address pool managed by the cluster",
+      "title": "Configure disk I/O throttling for a VM",
       "sections": [
         {
-          "title": "MAC Pool Management",
-          "notice": "Ensure that all automatically assigned MAC addresses for VMs come from a specific range.",
+          "title": "Resource Limiting",
+          "notice": "A low-priority batch processing VM is consuming too much storage I/O. Limit its IOPS.",
           "subtasks": [
-            "Edit the 'HyperConverged' custom resource.",
-            "Add a 'macPool' configuration.",
-            "Specify a range of MAC addresses for the cluster to use.",
-            "Deploy a new VM and verify its MAC address is from the configured pool."
+            "Create a VM named 'batch-vm'.",
+            "Edit the VirtualMachine resource.",
+            "In the disk definition, add an 'io' block and set the 'tps' (transactions per second) to a low value (e.g., 50).",
+            "Verify the setting is applied by observing the generated VMI XML."
           ]
         }
       ]
     },
     {
       "id": "task13",
-      "title": "Create a VM from a container disk image",
+      "title": "Add a custom SSH key to a running VM using 'virtctl'",
       "sections": [
         {
-          "title": "ContainerDisk VMs",
-          "notice": "Deploy a VM whose root filesystem is stored inside a container image in the cluster registry.",
+          "title": "Dynamic User Access",
+          "notice": "You need temporary SSH access to a running VM that you don't have credentials for.",
           "subtasks": [
-            "Find a pre-built container disk image or create your own.",
-            "Create a new VirtualMachine object.",
-            "In the 'volumes' section, define a 'containerDisk' volume.",
-            "Specify the container image URL as the source.",
-            "Attach this volume to the VM as its root disk."
+            "Ensure the QEMU guest agent is running on the target VM.",
+            "Have a local SSH key pair available on your client machine.",
+            "Use 'virtctl ssh' with the '--local-ssh-key' flag pointing to your public key.",
+            "Verify you can log in to the VM without a password."
           ]
         }
       ]
     },
     {
       "id": "task14",
-      "title": "Add a custom SSH key to a VM at runtime",
+      "title": "Troubleshoot a DataVolume stuck in 'Pending' state",
       "sections": [
         {
-          "title": "Runtime SSH Key Injection",
-          "notice": "You need to grant a temporary admin access to a running VM.",
+          "title": "Storage Debugging",
+          "notice": "A DataVolume is not progressing. Diagnose the cause.",
           "subtasks": [
-            "Ensure the QEMU guest agent is running on the VM.",
-            "Create a secret containing the public SSH key.",
-            "Use the 'oc virt ssh' command with the '--local-ssh-key' flag pointing to your private key.",
-            "This will temporarily add your key to the VM for access."
+            "Create a DataVolume that tries to import from an HTTP URL that does not exist.",
+            "Observe the DataVolume remains in a pending state.",
+            "Describe the DataVolume and check its events for errors related to the import process.",
+            "Examine the logs of the 'cdi-importer' pod to find the specific connection error."
           ]
         }
       ]
     },
     {
       "id": "task15",
-      "title": "Enable and configure disk I/O throttling on a VM",
+      "title": "Change the default boot order of a VM",
       "sections": [
         {
-          "title": "IOPS Limiting",
-          "notice": "Prevent a low-priority VM from consuming too much storage bandwidth.",
+          "title": "Boot Order Configuration",
+          "notice": "A VM needs to boot from a secondary network interface to receive a PXE boot image.",
           "subtasks": [
-            "Edit the VirtualMachine object.",
-            "In the 'disk' definition for the target disk, add a 'io' section.",
-            "Set a value for 'iotps' (I/O operations per second).",
-            "Verify the setting is applied by running a benchmark inside the VM."
+            "Create a VM with a standard disk and a secondary network interface.",
+            "Edit the VirtualMachine resource.",
+            "In the 'domain.devices' section, set the boot order for the network interface to 1.",
+            "Set the boot order for the disk to 2.",
+            "Start the VM and observe from the console that it attempts to PXE boot first."
           ]
         }
       ]

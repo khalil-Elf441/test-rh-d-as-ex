@@ -1,255 +1,243 @@
 
 {
   "examId": "ex316-3",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 3",
-  "description": "Challenges focused on migration, high availability, and advanced template management.",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 3: Storage, Templates, and Recovery",
+  "description": "This exam challenges your skills in storage management, template customization, and disaster recovery using OADP.",
   "timeLimit": "4 hours",
   "tasks": [
     {
       "id": "task01",
-      "title": "Migrate a VM from a traditional VMware vSphere environment",
+      "title": "Deploy the OADP Operator for backup and restore",
       "sections": [
         {
-          "title": "Provider Setup",
-          "notice": "Configure a connection to an external vSphere environment.",
+          "title": "Operator Installation and Configuration",
+          "notice": "The OADP Operator is required for all backup and restore tasks.",
           "subtasks": [
-            "Create a secret named 'vsphere-credentials' containing the vCenter URL, username, and password.",
-            "Create a 'Provider' custom resource for VMware.",
-            "Reference the secret and the vCenter fingerprint in the Provider CR.",
-            "Verify the provider connection status is 'Ready'."
-          ]
-        },
-        {
-          "title": "Migration Plan",
-          "notice": "Create a plan to migrate a specific VM.",
-          "subtasks": [
-            "Create a 'Plan' custom resource.",
-            "Map the vSphere source network to an OpenShift network (NAD).",
-            "Map the vSphere source datastore to an OpenShift StorageClass.",
-            "Select the specific VM from the vSphere inventory to be migrated."
+            "Install the 'OADP Operator for OpenShift Virtualization' from OperatorHub.",
+            "Create a 'DataProtectionApplication' (DPA) resource in the 'openshift-adp' namespace.",
+            "Configure the DPA to use a pre-existing S3-compatible object storage location for backups.",
+            "Verify all operator pods are running and the DPA is reconciled."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Execute and verify a VM migration",
+      "title": "Create a VM with multiple disks on different storage tiers",
       "sections": [
         {
-          "title": "Migration Execution",
-          "notice": "Run the migration plan and ensure the VM is running in OpenShift.",
+          "title": "Tiered Storage Provisioning",
+          "notice": "Deploy a VM named 'app-server' with its OS on a fast storage class and logs on a slower one.",
           "subtasks": [
-            "Create a 'Migration' custom resource referencing the previously created plan.",
-            "Monitor the migration progress until it is marked as 'Succeeded'.",
-            "Verify the new VM is running in the target namespace in OpenShift.",
-            "Check that the VM's data and network configuration are correct."
+            "Create a 20Gi PVC named 'app-os-disk' using a fast, SSD-based StorageClass.",
+            "Create a 50Gi PVC named 'app-log-disk' using a slow, HDD-based StorageClass.",
+            "Create a new VM named 'app-server', using the 'app-os-disk' for its boot volume.",
+            "Attach the 'app-log-disk' as a secondary data volume."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Customize a common template with cloud-init",
+      "title": "Perform a full backup of the 'app-server' VM",
       "sections": [
         {
-          "title": "Template Enhancement",
-          "notice": "Create a new RHEL9 template that automatically creates a user named 'admin' on first boot.",
+          "title": "OADP Backup",
+          "notice": "Create a complete, application-consistent backup of the multi-disk 'app-server' VM.",
           "subtasks": [
-            "Find the default RHEL9 template provided by OpenShift.",
-            "Clone the template to create a new one named 'rhel9-custom-user'.",
-            "Edit the new template to include a 'cloudInitNoCloud' section.",
-            "Add user data to create a user 'admin' with sudo privileges and a default SSH key."
+            "Create a 'Backup' resource named 'app-server-backup'.",
+            "Configure the backup to include the namespace containing 'app-server'.",
+            "Ensure both snapshots and data movement are enabled for a complete backup.",
+            "Monitor the backup until its phase is 'Completed' and check for any errors."
           ]
         }
       ]
     },
     {
       "id": "task04",
-      "title": "Deploy a VM from the custom cloud-init template",
+      "title": "Simulate a disaster and restore the 'app-server' VM",
       "sections": [
         {
-          "title": "VM Deployment",
-          "notice": "Test the new template by deploying a VM.",
+          "title": "OADP Restore",
+          "notice": "The 'app-server' VM and its PVCs have been accidentally deleted. Restore them from the backup.",
           "subtasks": [
-            "Create a new VM named 'test-cloud-init' from the 'rhel9-custom-user' template.",
-            "Boot the VM and wait for it to be ready.",
-            "Access the VM via its console or SSH and verify that the 'admin' user exists."
+            "Delete the 'app-server' VM, its DataVolumes, and its PVCs.",
+            "Create a 'Restore' resource named 'app-server-restore' from the 'app-server-backup'.",
+            "Ensure the restore operation recreates the VM and its associated storage resources.",
+            "Verify the restored VM starts and is functional."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Manage VM load balancing using an Ingress object",
+      "title": "Create a custom VM template with cloud-init networking",
       "sections": [
         {
-          "title": "Ingress Configuration",
-          "notice": "Expose the 'web-server-1' VM on the hostname 'webapp.apps.example.com'.",
+          "title": "Template Customization with Cloud-Init",
+          "notice": "Create a template that configures a static IP address on its primary network interface upon first boot.",
           "subtasks": [
-            "Ensure the VM is exposed internally via a ClusterIP service.",
-            "Create an 'Ingress' resource.",
-            "Define a rule that directs traffic from 'webapp.apps.example.com' to the VM's service.",
-            "Verify you can access the VM's web server using the specified hostname."
+            "Create a new template named 'rhel9-static-ip'.",
+            "In the template, include a 'cloudInitNoCloud' data source.",
+            "Provide 'networkData' to configure the eth0 interface with a static IP address (e.g., 10.1.2.100/24) and a gateway.",
+            "Deploy a test VM from this template and verify it boots with the correct static IP."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Perform a live update of the OpenShift Virtualization Operator",
+      "title": "Generate a template from an existing, running VM",
       "sections": [
         {
-          "title": "Operator Update",
-          "notice": "Update the operator from its current version to the next available stable version.",
+          "title": "Template Generation",
+          "notice": "An application team has fully configured a VM named 'golden-image-vm'. Create a template from it without shutting it down.",
           "subtasks": [
-            "Review the current operator subscription to see the installed version and channel.",
-            "Change the subscription to approve manual updates if it is set to automatic.",
-            "Approve the pending update to the next stable version.",
-            "Monitor the upgrade process and verify all virtualization components are updated and healthy."
+            "Ensure the 'golden-image-vm' is using a storage class that supports snapshots.",
+            "Use the web console or CLI to generate a new template named 'golden-template' from the running VM.",
+            "Review the generated template and note that it references the source PVCs."
           ]
         }
       ]
     },
     {
       "id": "task07",
-      "title": "Configure a VM to use a ReadWriteMany (RWX) PVC",
+      "title": "Modify the 'golden-template' to make it generic",
       "sections": [
         {
-          "title": "Shared Storage Setup",
-          "notice": "Deploy two web server VMs that share a single PVC for web content.",
+          "title": "Template Parameterization",
+          "notice": "The generated template is not generic. Modify it to allow customization at deployment time.",
           "subtasks": [
-            "Ensure an RWX-capable StorageClass (like OpenShift Data Foundation) is available.",
-            "Create a PVC named 'shared-content-pvc' with 'ReadWriteMany' access mode.",
-            "Deploy two VMs, 'web-1' and 'web-2'.",
-            "Attach 'shared-content-pvc' as a data volume to both VMs."
+            "Edit the 'golden-template'.",
+            "Add parameters for the VM name, memory, and CPU count.",
+            "Modify the template objects to use these new parameters instead of hardcoded values.",
+            "Deploy a new VM from the modified template, providing custom values for the parameters."
           ]
         }
       ]
     },
     {
       "id": "task08",
-      "title": "Take a consistent online snapshot of a VM with a running database",
+      "title": "Connect a VM to external storage using Multus",
       "sections": [
         {
-          "title": "Application-Consistent Snapshot",
-          "notice": "Use hooks to freeze the filesystem of a database before taking a snapshot.",
+          "title": "External Storage Access",
+          "notice": "A VM requires access to an iSCSI LUN on an external storage network.",
           "subtasks": [
-            "Install the QEMU guest agent on the database VM.",
-            "Create a 'VirtualMachineSnapshot' resource.",
-            "Add a 'guestAgentPing' probe to the snapshot definition to ensure the agent is responsive.",
-            "Verify the snapshot completes successfully."
+            "Create a new NetworkAttachmentDefinition for the storage network.",
+            "Create a VM and attach it to this storage network.",
+            "Inside the VM, configure an iSCSI initiator to connect to the external LUN."
           ]
         }
       ]
     },
     {
       "id": "task09",
-      "title": "Clone a VM to a different namespace",
+      "title": "Restore a single disk of a VM from a backup",
       "sections": [
         {
-          "title": "Cross-Namespace Cloning",
-          "notice": "Clone the 'db-server' from the 'default' namespace to the 'testing' namespace.",
+          "title": "Granular Restore",
+          "notice": "The data disk of 'app-server' has been corrupted. Restore only this disk from the existing backup.",
           "subtasks": [
-            "Create the 'testing' namespace.",
-            "Create a 'VirtualMachineClone' resource in the 'default' namespace.",
-            "Specify the source VM and set the 'targetNamespace' property to 'testing'.",
-            "Verify the cloned VM appears in the 'testing' namespace."
+            "Delete the 'app-log-disk' PVC belonging to the 'app-server' VM.",
+            "Create a 'Restore' resource from the 'app-server-backup'.",
+            "Configure the restore to only include the 'app-log-disk' PVC.",
+            "Verify the PVC is recreated and the VM becomes operational again."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Set CPU and Memory limits on a VM",
+      "title": "Use a DataVolume to import a raw image from a web server",
       "sections": [
         {
-          "title": "Resource Management",
-          "notice": "Prevent the 'dev-vm' from consuming excessive node resources.",
+          "title": "DataVolume Import",
+          "notice": "Create a new PVC and populate it with a disk image from a URL.",
           "subtasks": [
-            "Edit the 'dev-vm' VirtualMachine object.",
-            "Under the 'domain' spec, set CPU requests and limits (e.g., 1 core, 2 cores).",
-            "Set memory requests and limits (e.g., 2Gi, 4Gi).",
-            "Verify the changes are applied to the underlying VMI and pod."
+            "Create a new DataVolume resource named 'import-dv'.",
+            "Configure the source to be an HTTP URL pointing to a valid qcow2 or raw image.",
+            "Specify a PVC size and access mode for the destination.",
+            "Verify the DataVolume creates a PVC and imports the image successfully."
           ]
         }
       ]
     },
     {
       "id": "task11",
-      "title": "Connect a VM directly to an external network using a macvtap NAD",
+      "title": "Create a VM that uses the imported disk image",
       "sections": [
         {
-          "title": "Macvtap Configuration",
-          "notice": "Provide a VM with a dedicated interface on the host's physical network.",
+          "title": "VM from Imported Disk",
+          "notice": "Deploy a new VM using the PVC created by the 'import-dv' DataVolume.",
           "subtasks": [
-            "Identify the name of the primary network interface on a worker node (e.g., eth0).",
-            "Create a NetworkAttachmentDefinition using the 'macvtap' CNI plugin.",
-            "Specify the node's interface name in the NAD configuration.",
-            "Deploy a new VM and attach it to this macvtap network."
+            "Create a new VirtualMachine named 'imported-vm'.",
+            "Configure the VM to use the PVC generated from 'import-dv' as its boot disk.",
+            "Start the VM and ensure it boots correctly from the imported image."
           ]
         }
       ]
     },
     {
       "id": "task12",
-      "title": "Manually live migrate a VM and pin it to a specific node",
+      "title": "Clone a VM's disk using a DataVolume",
       "sections": [
         {
-          "title": "Controlled Migration",
-          "notice": "Move a VM to a specific high-performance node and ensure it stays there.",
+          "title": "Disk Cloning",
+          "notice": "You need a copy of the 'app-server' OS disk for offline analysis.",
           "subtasks": [
-            "Add a label to the target worker node (e.g., 'high-performance=true').",
-            "Initiate a live migration for the target VM.",
-            "After migration, edit the VM to add a 'nodeSelector' that targets the 'high-performance=true' label.",
-            "Verify the VM is running on the correct node."
+            "Identify the name of the PVC for the 'app-server' OS disk.",
+            "Create a new DataVolume named 'os-clone-dv'.",
+            "Configure its source to be the existing PVC of the OS disk.",
+            "Verify a new PVC is created and populated with a copy of the disk data."
           ]
         }
       ]
     },
     {
       "id": "task13",
-      "title": "Configure a soft pod anti-affinity for a group of VMs",
+      "title": "Configure a VM to use a block-mode PVC",
       "sections": [
         {
-          "title": "Scheduling Preference",
-          "notice": "Encourage a group of three web server VMs to run on different nodes if possible.",
+          "title": "Raw Block Storage",
+          "notice": "Deploy a high-performance database VM that uses a raw block device instead of a filesystem.",
           "subtasks": [
-            "Ensure all three web server VMs share a common label (e.g., 'app: web-cluster').",
-            "Edit the VirtualMachine template or objects.",
-            "Add a 'podAntiAffinity' rule with a 'preferredDuringSchedulingIgnoredDuringExecution' weight.",
-            "Configure the rule to avoid pods with the 'app: web-cluster' label."
+            "Find a StorageClass that supports 'volumeMode: Block'.",
+            "Create a new PVC named 'raw-db-pvc' with the volume mode set to 'Block'.",
+            "Deploy a new VM and attach 'raw-db-pvc' as a disk.",
+            "Verify inside the guest OS that a raw block device (e.g., /dev/vdb) is present."
           ]
         }
       ]
     },
     {
       "id": "task14",
-      "title": "Update the default network interface of a running VM",
+      "title": "Import an OVA image from a web server",
       "sections": [
         {
-          "title": "Hotplug Network Update",
-          "notice": "Change the default network attachment for a VM from the pod network to a specific NAD without a reboot.",
+          "title": "OVA Import",
+          "notice": "A vendor has supplied a pre-packaged application as an OVA file. Import it into the cluster.",
           "subtasks": [
-            "Ensure the VM has the QEMU guest agent installed.",
-            "Create a new NAD for the desired network.",
-            "Use the 'oc virt hotplug' command to add a new interface attached to the NAD.",
-            "Use the same command to remove the old default interface."
+            "Find the URL of a sample OVA file.",
+            "Create a VirtualMachine resource.",
+            "In the spec, add an annotation 'kubevirt.io/firstBoot' to indicate it needs processing.",
+            "Configure the boot disk to import from the OVA URL via a DataVolume."
           ]
         }
       ]
     },
     {
       "id": "task15",
-      "title": "Expose VM metrics to the OpenShift Monitoring stack",
+      "title": "Add access credentials to a VM template using cloud-init",
       "sections": [
         {
-          "title": "Monitoring Integration",
-          "notice": "Ensure that VM-level CPU and memory metrics are visible in the OpenShift console.",
+          "title": "Secure User Creation",
+          "notice": "Modify the 'rhel9-static-ip' template to also create a new user with a specific SSH public key.",
           "subtasks": [
-            "Verify that the 'kubevirt-prometheus-metrics' ServiceMonitor is present.",
-            "Navigate to the 'Observe' -> 'Metrics' section in the OpenShift console.",
-            "Run a PromQL query for 'kubevirt_vmi_memory_used_bytes' to see metrics for running VMs.",
-            "Create a custom dashboard panel showing the CPU usage for a specific VM."
+            "Edit the 'rhel9-static-ip' template.",
+            "In the cloud-init user data, add a 'users' section.",
+            "Define a user named 'automation' with sudo privileges.",
+            "Add a pre-generated SSH public key to the user's 'ssh_authorized_keys'."
           ]
         }
       ]

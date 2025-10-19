@@ -1,248 +1,253 @@
 
 {
   "examId": "ex316-1",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 1",
-  "description": "Simulated Red Hat exam environment for OpenShift Virtualization.",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 1: Core Skills",
+  "description": "This exam focuses on core skills including Operator deployment, VM provisioning, and basic network and storage configuration.",
   "timeLimit": "4 hours",
   "tasks": [
     {
       "id": "task01",
-      "title": "Deploy a Virtual Machine from a template",
+      "title": "Deploy the OpenShift Virtualization Operator",
       "sections": [
         {
-          "title": "VM Creation",
-          "notice": "Create a new VM named 'db-server' from the 'rhel9-server' template.",
+          "title": "Operator Installation",
+          "notice": "Deploy the Operator using OLM into the recommended default namespace.",
           "subtasks": [
-            "Navigate to the 'Virtualization' -> 'Virtual Machines' section.",
-            "Start the creation from a template.",
-            "Select the 'rhel9-server' template.",
-            "Name the VM 'db-server'.",
-            "Allocate 2 CPUs and 4GiB of memory."
+            "Find and install the 'OpenShift Virtualization' Operator from OperatorHub.",
+            "Ensure the installation targets the 'openshift-cnv' namespace.",
+            "Wait for the Operator installation to succeed."
+          ]
+        },
+        {
+          "title": "Activate Virtualization Components",
+          "notice": "Create the necessary Custom Resource to enable virtualization features on the cluster.",
+          "subtasks": [
+            "Create a 'HyperConverged' custom resource in the 'openshift-cnv' namespace.",
+            "Accept all the default settings for the HyperConverged resource.",
+            "Verify that all pods related to OpenShift Virtualization are running correctly before proceeding."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Install and configure MariaDB server",
+      "title": "Provision a RHEL9 VM for a database server",
       "sections": [
         {
-          "title": "Installation and service setup",
-          "notice": "Ensure MariaDB is installed and running on boot.",
+          "title": "VM Creation from Template",
+          "notice": "Use the official RHEL9 template to create a new VM named 'db-vm'.",
           "subtasks": [
-            "Configure internal repo for database packages.",
-            "Install MariaDB server packages.",
-            "Enable and start the MariaDB service.",
-            "Verify the service is listening on the default port (3306)."
+            "Find the common template for Red Hat Enterprise Linux 9.",
+            "Provision a new VirtualMachine named 'db-vm' from this template.",
+            "Customize the VM to have 2 CPUs and 3Gi of memory.",
+            "Ensure the VM uses a disk of size 25Gi."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Expose the database service via NodePort",
+      "title": "Perform basic system administration on 'db-vm'",
       "sections": [
         {
-          "title": "Service Creation",
-          "notice": "Create a NodePort service to expose the MariaDB port.",
+          "title": "Package Installation and Service Management",
+          "notice": "Access the VM and install and enable a database service.",
           "subtasks": [
-            "Create a new Service named 'db-service'.",
-            "Set the service type to 'NodePort'.",
-            "Map the service to the VM 'db-server'.",
-            "Expose the container port 3306."
+            "Access the serial console of 'db-vm'.",
+            "Install the 'mariadb-server' package using DNF.",
+            "Enable the 'mariadb' service to start at boot time.",
+            "Start the 'mariadb' service."
           ]
         }
       ]
     },
     {
-        "id": "task04",
-        "title": "Create a custom template from an existing VM",
-        "sections": [
-            {
-                "title": "Template Creation",
-                "notice": "Create a reusable template from the configured 'db-server' VM.",
-                "subtasks": [
-                    "Shutdown the 'db-server' VM.",
-                    "Navigate to the Templates section and create a new template.",
-                    "Select the 'db-server' VM as the source.",
-                    "Name the template 'mariadb-template'."
-                ]
-            }
-        ]
+      "id": "task04",
+      "title": "Configure a Kubernetes Service for the database VM",
+      "sections": [
+        {
+          "title": "Expose VM via ClusterIP Service",
+          "notice": "Make the MariaDB service on 'db-vm' available to other pods in the cluster.",
+          "subtasks": [
+            "Create a Service named 'db-service' of type ClusterIP.",
+            "Configure the service to select the 'db-vm' virtual machine.",
+            "Forward traffic from the service on port 3306 to the VM's port 3306."
+          ]
+        }
+      ]
     },
     {
-        "id": "task05",
-        "title": "Perform an online snapshot of a running VM",
-        "sections": [
-            {
-                "title": "Live Snapshot",
-                "notice": "Take a snapshot of a newly deployed web server without shutting it down.",
-                "subtasks": [
-                    "Deploy a new VM named 'web-server' from a generic template.",
-                    "Create a 'VirtualMachineSnapshot' resource for the 'web-server' VM.",
-                    "Ensure the snapshot completes while the VM is still running.",
-                    "Verify the 'readyToUse' status of the snapshot is true."
-                ]
-            }
-        ]
+      "id": "task05",
+      "title": "Provision a web server VM with cloud-init customization",
+      "sections": [
+        {
+          "title": "VM Provisioning with Cloud-Init",
+          "notice": "Deploy a VM named 'web-vm' and use cloud-init to pre-configure it.",
+          "subtasks": [
+            "Create a new VM named 'web-vm' from the RHEL9 template.",
+            "Use cloud-init user data to set the hostname to 'web-vm.example.com'.",
+            "Use cloud-init to install the 'nginx' package.",
+            "Use cloud-init to enable and start the 'nginx' service."
+          ]
+        }
+      ]
     },
     {
-        "id": "task06",
-        "title": "Clone a VM in the same namespace",
-        "sections": [
-            {
-                "title": "VM Cloning",
-                "notice": "Create a duplicate of the 'web-server' for testing purposes.",
-                "subtasks": [
-                    "Create a 'VirtualMachineClone' resource.",
-                    "Specify 'web-server' as the source VM.",
-                    "Name the new target VM 'web-server-clone'.",
-                    "Verify the new VM is created and starts successfully."
-                ]
-            }
-        ]
+      "id": "task06",
+      "title": "Create a NetworkPolicy for the database VM",
+      "sections": [
+        {
+          "title": "Secure VM with Network Policy",
+          "notice": "Create a policy that only allows traffic to 'db-vm' from 'web-vm'.",
+          "subtasks": [
+            "Ensure both 'db-vm' and 'web-vm' have appropriate labels (e.g., 'app=db' and 'app=web').",
+            "Create a NetworkPolicy named 'db-access-policy'.",
+            "The policy should apply to pods with the 'app=db' label.",
+            "Define an ingress rule that allows traffic on port 3306 only from pods with the 'app=web' label."
+          ]
+        }
+      ]
     },
     {
-        "id": "task07",
-        "title": "Perform a live migration of a VM",
-        "sections": [
-            {
-                "title": "Node Evacuation Simulation",
-                "notice": "Move the 'web-server' VM to a different node without downtime.",
-                "subtasks": [
-                    "Identify the node the VM is currently running on.",
-                    "Create a 'VirtualMachineInstanceMigration' resource for the VM.",
-                    "Monitor the migration job until it completes.",
-                    "Confirm the VM is now running on a different node."
-                ]
-            }
-        ]
+      "id": "task07",
+      "title": "Attach a new persistent disk to 'db-vm'",
+      "sections": [
+        {
+          "title": "Add and Configure Persistent Storage",
+          "notice": "Add a 10Gi disk to the database VM for storing data.",
+          "subtasks": [
+            "Create a new PersistentVolumeClaim named 'db-data-pvc' with a size of 10Gi.",
+            "Ensure the PVC uses a StorageClass that supports ReadWriteOnce (RWO) access.",
+            "Add the new PVC as a data volume to the 'db-vm' VirtualMachine.",
+            "Verify the new disk is visible as a block device inside the VM."
+          ]
+        }
+      ]
     },
     {
-        "id": "task08",
-        "title": "Configure a Readiness Probe for a VM",
-        "sections": [
-            {
-                "title": "VM Health Check",
-                "notice": "Add a readiness probe to the 'web-server' to ensure it only receives traffic when ready.",
-                "subtasks": [
-                    "Edit the 'web-server' VirtualMachine object.",
-                    "Add a 'readinessProbe' to the VM spec.",
-                    "Configure the probe to perform a TCP socket check on port 80.",
-                    "Verify the VMI shows a ready status after the probe succeeds."
-                ]
-            }
-        ]
+      "id": "task08",
+      "title": "Detach a disk from 'web-vm'",
+      "sections": [
+        {
+          "title": "Modify VM Storage",
+          "notice": "The 'web-vm' was created with an extra, unnecessary disk. Remove it.",
+          "subtasks": [
+            "First, add a new 5Gi data volume to 'web-vm' named 'extra-disk'.",
+            "After the disk is added, shut down the 'web-vm'.",
+            "Remove the 'extra-disk' data volume from the 'web-vm' definition.",
+            "Start the VM and verify the disk has been removed."
+          ]
+        }
+      ]
     },
     {
-        "id": "task09",
-        "title": "Attach a VM to a secondary network using a NAD",
-        "sections": [
-            {
-                "title": "Multi-homed VM",
-                "notice": "Connect the 'db-server' to a secondary management network.",
-                "subtasks": [
-                    "Create a NetworkAttachmentDefinition for a bridge network named 'management-net'.",
-                    "Edit the 'db-server' VM.",
-                    "Add a new network interface attached to the 'management-net'.",
-                    "Start the VM and verify it has two network interfaces inside the guest OS."
-                ]
-            }
-        ]
+      "id": "task09",
+      "title": "Create a snapshot of the 'web-vm'",
+      "sections": [
+        {
+          "title": "VM Snapshot",
+          "notice": "Take a snapshot of the 'web-vm' before applying updates.",
+          "subtasks": [
+            "Create a VirtualMachineSnapshot resource named 'web-vm-snapshot-v1'.",
+            "Ensure the snapshot targets the 'web-vm' VM.",
+            "Wait for the snapshot operation to complete and for the 'readyToUse' status to be true."
+          ]
+        }
+      ]
     },
     {
-        "id": "task10",
-        "title": "Backup and Restore a VM using OADP",
-        "sections": [
-            {
-                "title": "VM Disaster Recovery",
-                "notice": "Simulate a VM failure by backing it up and restoring it.",
-                "subtasks": [
-                    "Create a 'Backup' of the 'web-server' VM.",
-                    "Delete the 'web-server' VM after the backup is complete.",
-                    "Create a 'Restore' resource from the backup.",
-                    "Verify the 'web-server' VM is recreated and running."
-                ]
-            }
-        ]
+      "id": "task10",
+      "title": "Restore 'web-vm' from its snapshot",
+      "sections": [
+        {
+          "title": "VM Restore",
+          "notice": "A faulty update was applied to 'web-vm'. Revert it to its previous state.",
+          "subtasks": [
+            "Create a VirtualMachineRestore resource named 'web-vm-restore-v1'.",
+            "Configure the restore to use the 'web-vm-snapshot-v1' as its source.",
+            "Verify the VM is reverted to its previous state."
+          ]
+        }
+      ]
     },
     {
-        "id": "task11",
-        "title": "Perform node maintenance by draining a node",
-        "sections": [
-            {
-                "title": "Node Drain",
-                "notice": "Safely prepare a worker node for maintenance by migrating its VMs.",
-                "subtasks": [
-                    "Choose a worker node that is running at least one VM.",
-                    "Use 'oc adm drain <node-name>' with the correct flags to evict the VMs.",
-                    "Ensure that live migration is triggered for the running VMs.",
-                    "Verify the node is marked as unschedulable and has no running VMs."
-                ]
-            }
-        ]
+      "id": "task11",
+      "title": "Clone the 'db-vm' for a new staging environment",
+      "sections": [
+        {
+          "title": "VM Cloning",
+          "notice": "Create a full clone of the database VM named 'db-vm-staging'.",
+          "subtasks": [
+            "Prepare the 'db-vm' for cloning if necessary.",
+            "Create a clone of 'db-vm' using the OpenShift web console or CLI.",
+            "Name the new VM 'db-vm-staging'.",
+            "Verify the clone is created and starts successfully."
+          ]
+        }
+      ]
     },
     {
-        "id": "task12",
-        "title": "Configure a VM to use a PVC with the block storage mode",
-        "sections": [
-            {
-                "title": "Block Storage for VMs",
-                "notice": "Provide a database VM with a raw block device for higher performance.",
-                "subtasks": [
-                    "Find a StorageClass that supports block volume mode.",
-                    "Create a PVC named 'db-block-pvc' with 'accessModes: ReadWriteOnce' and 'volumeMode: Block'.",
-                    "Create a new VM and attach the PVC as a disk.",
-                    "Verify a raw block device is visible inside the guest OS."
-                ]
-            }
-        ]
+      "id": 'task12',
+      "title": "Configure a NodePort service for the web server",
+      "sections": [
+        {
+          "title": "External Access via NodePort",
+          "notice": "Expose the 'web-vm' externally using a NodePort service.",
+          "subtasks": [
+            "Create a new Service named 'web-svc-external'.",
+            "Set the service type to NodePort.",
+            "Select the 'web-vm' and map service port 8080 to the VM's Nginx port 80.",
+            "Identify the assigned NodePort and verify you can access the web server from outside the cluster."
+          ]
+        }
+      ]
     },
     {
-        "id": "task13",
-        "title": "Update the memory and CPU of a running VM",
-        "sections": [
-            {
-                "title": "VM Hotplug",
-                "notice": "Increase the resources of the 'db-server' VM without a reboot.",
-                "subtasks": [
-                    "Edit the 'VirtualMachine' object for 'db-server'.",
-                    "Increase the 'spec.template.spec.domain.resources.requests.memory' to a higher value.",
-                    "The change should apply automatically to the running VMI.",
-                    "Verify inside the guest OS that the new memory amount is recognized."
-                ]
-            }
-        ]
+      "id": "task13",
+      "title": "Configure a health probe for 'web-vm'",
+      "sections": [
+        {
+          "title": "Liveness Probe",
+          "notice": "Ensure the 'web-vm' is automatically restarted if its web server crashes.",
+          "subtasks": [
+            "Edit the 'web-vm' VirtualMachine resource.",
+            "Add a liveness probe to the VM definition.",
+            "Configure the probe to perform an HTTP GET request on port 80.",
+            "Set an appropriate initial delay and failure threshold."
+          ]
+        }
+      ]
     },
     {
-        "id": "task14",
-        "title": "Prepare a VM for node failure by setting eviction strategy",
-        "sections": [
-            {
-                "title": "Eviction Strategy",
-                "notice": "Ensure a critical VM will be live migrated if the node enters a not-ready state.",
-                "subtasks": [
-                    "Edit the 'db-server' VirtualMachine object.",
-                    "Set the 'spec.template.spec.evictionStrategy' to 'LiveMigrate'.",
-                    "This ensures the VM will not be terminated during a node failure if live migration is possible."
-                ]
-            }
-        ]
+      "id": "task14",
+      "title": "Use a custom template to deploy a VM",
+      "sections": [
+        {
+          "title": "Generate and Use a Custom Template",
+          "notice": "Generate a template from 'web-vm' and use it to deploy another VM.",
+          "subtasks": [
+            "Generate a custom template named 'nginx-template' from the configured 'web-vm'.",
+            "Modify the template to allow the VM name to be customized via a parameter.",
+            "Use the new 'nginx-template' to provision a new VM named 'web-vm-2'."
+          ]
+        }
+      ]
     },
     {
-        "id": "task15",
-        "title": "Access a VM using the 'virtctl ssh' command",
-        "sections": [
-            {
-                "title": "CLI Access",
-                "notice": "Use the virtctl client tool to SSH into the 'web-server' VM.",
-                "subtasks": [
-                    "Ensure you have the 'virtctl' client installed.",
-                    "Run 'virtctl ssh <vm-name>' to connect to the VM.",
-                    "This method works even if the VM does not have an external IP address."
-                ]
-            }
-        ]
+      "id": "task15",
+      "title": "Assign 'web-vm-2' to a specific node",
+      "sections": [
+        {
+          "title": "Node Affinity",
+          "notice": "Ensure the 'web-vm-2' only runs on a worker node with a specific label.",
+          "subtasks": [
+            "Select a worker node and add a label 'region=primary' to it.",
+            "Edit the 'web-vm-2' VirtualMachine resource.",
+            "Add a node selector to the VM spec that targets the 'region=primary' label.",
+            "Verify the VM is scheduled and running on the correct node."
+          ]
+        }
+      ]
     }
   ]
 }
