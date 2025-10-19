@@ -1,12 +1,13 @@
 {
   "examId": "ex316-4",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 4: Full Spectrum Exam IV",
-  "description": "A comprehensive 12-task exam covering a wide range of objectives including high availability, scheduling, and failure recovery.",
-  "timeLimit": "4 hours",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 4: Final Version",
+  "description": "A comprehensive exam focusing on high availability, scheduling, and failure recovery.",
+  "prerequisites": "# This script should be run once before starting the exam.\n\necho \"Creating prerequisite resources for Mock 4...\"\n\n# This mock requires nodes to be labeled for affinity tests.\noc label node <node-name-1> region=east --overwrite=true || true\noc label node <node-name-2> region=west --overwrite=true || true\n\necho \"Prerequisite setup complete.\"",
   "tasks": [
     {
       "id": "task01",
       "title": "Deploy a Guaranteed-QoS VM with Dedicated Resources",
+      "solution": "# 1. Create Namespace\noc create namespace realtime-apps\n\n# 2. Create VM with Guaranteed QoS\noc create -f - -n realtime-apps <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: latency-critical-vm\nspec:\n  runStrategy: Always\n  template:\n    spec:\n      domain:\n        cpu:\n          cores: 2\n          dedicatedCpuPlacement: true\n        resources:\n          requests:\n            memory: 4Gi\n            cpu: 2\n          limits:\n            memory: 4Gi\n            cpu: 2\n      volumes: []\nEOF\n\n# 3. Verify QoS\noc get pod -l kubevirt.io/domain=latency-critical-vm -n realtime-apps -o jsonpath='{.items[0].status.qosClass}' # Should return 'Guaranteed'\n",
       "sections": [
         {
           "title": "Dedicated CPU and Memory",
@@ -14,8 +15,8 @@
           "subtasks": [
             "Create a new namespace named 'realtime-apps'.",
             "Deploy a VM named 'latency-critical-vm'.",
-            "Set memory and CPU requests equal to the limits (e.g., 4Gi, 2 CPUs).",
-            "Enable 'dedicatedCpuPlacement' to ensure CPU pinning.",
+            "Set memory and CPU requests equal to the limits (e.g., 4Gi memory, 2 CPUs).",
+            "Enable 'dedicatedCpuPlacement' for the VM to ensure CPU pinning.",
             "Verify the VM's underlying pod has the 'Guaranteed' QoS class."
           ]
         }
@@ -24,6 +25,7 @@
     {
       "id": "task02",
       "title": "Configure High Availability for the VM",
+      "solution": "# 1. Set Eviction Strategy\noc patch vm latency-critical-vm -n realtime-apps --type merge -p '{\"spec\":{\"template\":{\"spec\":{\"evictionStrategy\":\"LiveMigrateIfPossible\"}}}}'\n\n# 2. Add Liveness Probe\noc patch vm latency-critical-vm -n realtime-apps --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/livenessProbe\", \"value\": {\"tcpSocket\": {\"port\": 9000}, \"initialDelaySeconds\": 120}}}]'\n\n# 3. Add Watchdog\noc patch vm latency-critical-vm -n realtime-apps --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/watchdog\", \"value\": {\"name\": \"watchdog\", \"i6300esb\": {\"action\": \"reset\"}}}]'\n\n# 4. Verify\noc get vm latency-critical-vm -n realtime-apps -o yaml\n",
       "sections": [
         {
           "title": "Health Probes and Eviction Strategy",
@@ -31,7 +33,8 @@
           "subtasks": [
             "Add a liveness probe that checks a TCP port 9000.",
             "Add a watchdog device to the VM.",
-            "Set the VM's 'evictionStrategy' to 'LiveMigrateIfPossible'."
+            "Set the VM's 'evictionStrategy' to 'LiveMigrateIfPossible'.",
+            "Verify the settings have been applied."
           ]
         }
       ]
@@ -39,6 +42,7 @@
     {
       "id": "task03",
       "title": "Configure Redundant Load Balancer VMs with Anti-Affinity",
+      "solution": "# 1. Create Namespace\noc create namespace infra-services\n\n# 2. Create VMs with Anti-Affinity\noc create -f - -n infra-services <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: lb-1\n  labels:\n    role: lb-pair\nspec:\n  template:\n    metadata:\n      labels:\n        role: lb-pair\n    spec:\n      affinity:\n        podAntiAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n          - labelSelector:\n              matchExpressions:\n              - key: role\n                operator: In\n                values:\n                - lb-pair\n            topologyKey: kubernetes.io/hostname\n      domain: {}\n      volumes: []\n---\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: lb-2\n  labels:\n    role: lb-pair\nspec:\n  template:\n    metadata:\n      labels:\n        role: lb-pair\n    spec:\n      affinity:\n        podAntiAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n          - labelSelector:\n              matchExpressions:\n              - key: role\n                operator: In\n                values:\n                - lb-pair\n            topologyKey: kubernetes.io/hostname\n      domain: {}\n      volumes: []\nEOF\n\n# 3. Verify\noc get pods -n infra-services -o wide\n",
       "sections": [
         {
           "title": "VM Anti-Affinity",
@@ -46,7 +50,8 @@
           "subtasks": [
             "Create a new namespace named 'infra-services'.",
             "Deploy two VMs, 'lb-1' and 'lb-2', with the label 'role=lb-pair'.",
-            "Add a required 'podAntiAffinity' rule to both VMs to prevent co-location based on the 'role=lb-pair' label."
+            "Add a required 'podAntiAffinity' rule to both VMs to prevent co-location based on the 'role=lb-pair' label.",
+            "Verify the VMs are running on different nodes."
           ]
         }
       ]
@@ -54,6 +59,7 @@
     {
       "id": "task04",
       "title": "Expose the Load Balancer VMs and Configure RBAC",
+      "solution": "# 1. Create NodePort Service\noc create -f - -n infra-services <<EOF\napiVersion: v1\nkind: Service\nmetadata:\n  name: lb-service\nspec:\n  type: NodePort\n  selector:\n    role: lb-pair\n  ports:\n  - protocol: TCP\n    port: 80\n    targetPort: 80\nEOF\n\n# 2. Create User\noc create user net-op\n\n# 3. Create Role\noc create role pod-service-manager -n infra-services --verb=get,list,delete --resource=pods,services\n\n# 4. Bind Role\noc create rolebinding net-op-binding --role=pod-service-manager --user=net-op -n infra-services\n",
       "sections": [
         {
           "title": "Service and User Management",
@@ -70,10 +76,11 @@
     {
       "id": "task05",
       "title": "Use Taints and Tolerations for a Dedicated GPU Node",
+      "solution": "# 1. Create Namespace\noc create namespace ml-ops\n\n# 2. Taint a node\nNODE_TO_TAINT=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[0].metadata.name}')\noc adm taint node $NODE_TO_TAINT gpu=true:NoSchedule\n\n# 3. Deploy VM with Toleration\noc create -f - -n ml-ops <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: ml-training-vm\nspec:\n  template:\n    spec:\n      tolerations:\n      - key: \"gpu\"\n        operator: \"Equal\"\n        value: \"true\"\n        effect: \"NoSchedule\"\n      domain: {}\n      volumes: []\nEOF\n",
       "sections": [
         {
           "title": "Node Tainting and VM Tolerations",
-          "notice": "A node with a GPU must be reserved for specific VMs. Deploy a VM that can use this node in a new 'ml-ops' namespace.",
+          "notice": "A specific node has a GPU and should only be used by VMs that explicitly tolerate it. Deploy a VM that can use this node in a new 'ml-ops' namespace.",
           "subtasks": [
             "Create a new namespace named 'ml-ops'.",
             "Add a taint 'gpu=true:NoSchedule' to a worker node.",
@@ -86,14 +93,16 @@
     {
       "id": "task06",
       "title": "Attach a Disk and Install Custom Drivers on the GPU VM",
+      "solution": "# 1. Add Volume\noc virt addvolume ml-training-vm --claim-size=50Gi --volume-name=gpudata -n ml-ops\n\n# 2. Access VM and configure storage/packages\n# oc console ml-training-vm -n ml-ops\n# sudo -i\n# mkfs.xfs /dev/vdb\n# mkdir /data\n# mount /dev/vdb /data\n# echo \"/dev/vdb /data xfs defaults 0 0\" >> /etc/fstab\n\n# 3. Configure repo and install\n# echo -e \"[gpu-drivers]\\nname=GPU Drivers\\nbaseurl=http://repo.example.com/gpu_drivers\\nenabled=1\\ngpgcheck=0\" > /etc/yum.repos.d/gpu-drivers.repo\n# dnf install -y kmod-nvidia\n",
       "sections": [
         {
           "title": "Disk and Package Management",
-          "notice": "Configure the 'ml-training-vm' with storage and necessary software. To install the driver, you must first configure a custom repository inside the VM. Create the file '/etc/yum.repos.d/gpu-drivers.repo' with the content: [gpu-drivers]\nname=GPU Drivers\nbaseurl=http://repo.example.com/gpu_drivers\nenabled=1\ngpgcheck=0. Perform actions in the 'ml-ops' namespace.",
+          "notice": "Configure the 'ml-training-vm' with storage and necessary software. Repo details: URL: http://repo.example.com/gpu_drivers, File: /etc/yum.repos.d/gpu-drivers.repo, Content: [gpu-drivers]... Perform actions in the 'ml-ops' namespace.",
           "subtasks": [
             "Create and attach a 50Gi PVC to the 'ml-training-vm'.",
             "Log into the VM and create a filesystem on the new disk.",
-            "Install the 'corp-gpu-driver' package using the provided repository details."
+            "Configure the custom repository as specified.",
+            "Install the 'kmod-nvidia' package."
           ]
         }
       ]
@@ -101,6 +110,7 @@
     {
       "id": "task07",
       "title": "Simulate a Node Failure and Observe VM Recovery",
+      "solution": "# 1. Identify node\nNODE_NAME=$(oc get pod -n realtime-apps -l kubevirt.io/domain=latency-critical-vm -o jsonpath='{.items[0].spec.nodeName}')\n\n# 2. Drain node\noc adm drain $NODE_NAME --ignore-daemonsets --delete-local-data\n\n# 3. Observe migration\noc get vmi -n realtime-apps -w # Watch the VM migrate\n\n# 4. Uncordon node\noc adm uncordon $NODE_NAME\n",
       "sections": [
         {
           "title": "Failure Simulation",
@@ -108,7 +118,8 @@
           "subtasks": [
             "Identify the node where 'latency-critical-vm' is running.",
             "Drain the node to trigger a live migration.",
-            "Observe that the VM is successfully migrated to another node without downtime."
+            "Observe that the VM is successfully migrated to another node.",
+            "Uncordon the node after the maintenance is complete."
           ]
         }
       ]
@@ -116,13 +127,16 @@
     {
       "id": "task08",
       "title": "Create a Custom Template from the GPU VM",
+      "solution": "# This is best done via the Web Console, but can be scripted.\n\n# 1. Find the source PVC name for the VM\nSOURCE_PVC=$(oc get dv -n ml-ops -l kubevirt.io/domain=ml-training-vm -o jsonpath='{.items[0].metadata.name}')\n\n# 2. Create the template with a parameter\noc create -f - -n ml-ops <<EOF\napiVersion: template.openshift.io/v1\nkind: Template\nmetadata:\n  name: gpu-node-template\nobjects:\n- apiVersion: kubevirt.io/v1\n  kind: VirtualMachine\n  metadata:\n    name: \"${NAME}\"\n  spec:\n    dataVolumeTemplates:\n    - apiVersion: cdi.kubevirt.io/v1beta1\n      kind: DataVolume\n      metadata:\n        name: \"${NAME}-rootdisk\"\n      spec:\n        source:\n          pvc:\n            name: $SOURCE_PVC\n            namespace: ml-ops\n    template:\n      spec:\n        domain:\n          cpu:\n            cores: \"${CPU_CORES}\"\n        volumes: []\nparameters:\n- name: NAME\n  required: true\n- name: CPU_CORES\n  value: \"2\"\nEOF\n\n# 3. Deploy a test VM\noc new-app --template=gpu-node-template --param=NAME=test-gpu-vm --param=CPU_CORES=4 -n ml-ops\n",
       "sections": [
         {
           "title": "Template Generation",
           "notice": "Create a reusable template from the configured 'ml-training-vm'. Perform actions in the 'ml-ops' namespace.",
           "subtasks": [
             "Generate a template named 'gpu-node-template' from the 'ml-training-vm'.",
-            "Verify the template is created in the 'ml-ops' namespace."
+            "Verify the template is created.",
+            "Add a parameter to the template for CPU cores.",
+            "Deploy a test VM from the template with the new parameter."
           ]
         }
       ]
@@ -130,13 +144,16 @@
     {
       "id": "task09",
       "title": "Clone the Latency-Critical VM's Disk",
+      "solution": "# 1. Identify the root PVC\n# The root PVC is often named after the VM with a -root suffix, but can be found by inspecting the VM yaml.\nROOT_PVC=$(oc get vm latency-critical-vm -n realtime-apps -o jsonpath='{.spec.dataVolumeTemplates[0].metadata.name}')\n\n# 2. Create DataVolume to clone\noc create -f - -n realtime-apps <<EOF\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: latency-vm-disk-backup\nspec:\n  source:\n    pvc:\n      namespace: realtime-apps\n      name: $ROOT_PVC\n  pvc:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 20Gi # Must be same size or larger\nEOF\n\n# 3. Verify\noc get pvc latency-vm-disk-backup -n realtime-apps\n",
       "sections": [
         {
           "title": "DataVolume Cloning",
           "notice": "Create a backup copy of the 'latency-critical-vm's' root disk. Perform actions in the 'realtime-apps' namespace.",
           "subtasks": [
             "Identify the root PVC for the 'latency-critical-vm'.",
-            "Create a DataVolume that clones this PVC to a new PVC named 'latency-vm-disk-backup'."
+            "Create a DataVolume that clones this PVC to a new PVC named 'latency-vm-disk-backup'.",
+            "Verify the new PVC is created successfully.",
+            "Confirm the data has been populated."
           ]
         }
       ]
@@ -144,6 +161,7 @@
     {
       "id": "task10",
       "title": "Configure a Preferred Node Affinity",
+      "solution": "# 1. Label node\noc label node <your-chosen-node-name> region=east --overwrite\n\n# 2. Deploy VM with preferred affinity\noc create -f - -n ml-ops <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: reporting-vm\nspec:\n  template:\n    spec:\n      affinity:\n        nodeAffinity:\n          preferredDuringSchedulingIgnoredDuringExecution:\n          - weight: 1\n            preference:\n              matchExpressions:\n              - key: region\n                operator: In\n                values:\n                - east\n      domain: {}\n      volumes: []\nEOF\n\n# 3. Verify (check which node it landed on)\noc get pod -l kubevirt.io/domain=reporting-vm -n ml-ops -o wide\n",
       "sections": [
         {
           "title": "Scheduling Preference",
@@ -151,7 +169,8 @@
           "subtasks": [
             "Label at least one worker node with 'region=east'.",
             "Deploy a new VM named 'reporting-vm'.",
-            "Add a 'preferredDuringSchedulingIgnoredDuringExecution' node affinity rule with a high weight for the 'region=east' label."
+            "Add a 'preferredDuringSchedulingIgnoredDuringExecution' node affinity rule with a high weight for the 'region=east' label.",
+            "Verify the VM schedules on the correct node if available."
           ]
         }
       ]
@@ -159,6 +178,7 @@
     {
       "id": "task11",
       "title": "Backup and Restore the Load Balancer VMs",
+      "solution": "# 1. Create Backup\noc create -f - -n openshift-adp <<EOF\napiVersion: velero.io/v1\nkind: Backup\nmetadata:\n  name: infra-services-backup\nspec:\n  includedNamespaces:\n  - infra-services\n  snapshotVolumes: true\nEOF\n\n# 2. Wait for backup to complete\noc get backup infra-services-backup -n openshift-adp -w\n\n# 3. Delete Namespace\noc delete project infra-services\n\n# 4. Restore Namespace\noc create -f - -n openshift-adp <<EOF\napiVersion: velero.io/v1\nkind: Restore\nmetadata:\n  name: infra-services-restore\nspec:\n  backupName: infra-services-backup\nEOF\n\n# 5. Verify\noc get restore infra-services-restore -n openshift-adp -w\noc get vm -n infra-services\n",
       "sections": [
         {
           "title": "OADP Backup and Restore",
@@ -166,7 +186,8 @@
           "subtasks": [
             "Create a backup of the 'infra-services' namespace using OADP.",
             "Delete the namespace.",
-            "Restore the namespace from the backup."
+            "Restore the namespace from the backup.",
+            "Verify the VMs and services are functional."
           ]
         }
       ]
@@ -174,6 +195,7 @@
     {
       "id": "task12",
       "title": "Troubleshoot a VM Stuck in Pending State",
+      "solution": "# 1. Create VM with impossible CPU request\noc create -f - -n infra-services <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: impossible-vm\nspec:\n  template:\n    spec:\n      domain:\n        resources:\n          requests:\n            cpu: 1000\n      volumes: []\nEOF\n\n# 2. Observe Pending state\noc get vm impossible-vm -n infra-services -w # Will stay in Pending\n\n# 3. Diagnose\n# Find the VMI pod, it will also be Pending\noc get pod -l kubevirt.io/domain=impossible-vm -n infra-services\noc describe pod <pod-name> -n infra-services # Look for \"FailedScheduling\" event\n\n# 4. Correct the VM\noc patch vm impossible-vm -n infra-services --type merge -p '{\"spec\":{\"template\":{\"spec\":{\"domain\":{\"resources\":{\"requests\":{\"cpu\":\"1\"}}}}}}}'\n\n# 5. Verify\noc get vm impossible-vm -n infra-services -w # Should now start\n",
       "sections": [
         {
           "title": "Debugging Scheduling",

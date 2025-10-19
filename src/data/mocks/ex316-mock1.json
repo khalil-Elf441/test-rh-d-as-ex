@@ -1,19 +1,20 @@
 {
   "examId": "ex316-1",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 1: Full Spectrum Exam I",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 1: Final Version",
   "description": "A comprehensive 14-task exam covering a wide range of objectives including deployment, networking, storage, and VM lifecycle management.",
-  "timeLimit": "4 hours",
+  "prerequisites": "# This script should be run once before starting the exam.\n# It simulates the base environment provided to the candidate.\n\necho \"Creating prerequisite resources for Mock 1...\"\n\n# This mock assumes a default storage class is available.\n# It also assumes a RHEL9 template is available, which is standard.\n# No complex cluster-wide resources are needed for this mock.\n\necho \"Prerequisite setup complete. You can now start the exam.\"\n",
   "tasks": [
     {
       "id": "task01",
       "title": "Deploy a database server with a custom repository",
+      "solution": "# 1. Create Namespace\noc create namespace db-app-ns\n\n# 2. Create VM from a template (assumes a rhel9 template exists)\noc process -n openshift rhel9 --param NAME=db-server | oc create -n db-app-ns -f -\n\n# 3. Wait for VM to be running\noc wait --for=condition=Ready vmi/db-server -n db-app-ns --timeout=300s\n\n# 4. Install and configure services inside the VM\n# You would use \'oc console\' or \'virtctl ssh\' to access the VM\n# sudo -i\n# echo -e \"[custom-db]\\nname=Custom DB Repo\\nbaseurl=http://repo.example.com/db_packages\\nenabled=1\\ngpgcheck=0\" > /etc/yum.repos.d/custom.repo\n# dnf install -y mariadb-server\n# systemctl enable --now mariadb",
       "sections": [
         {
           "title": "Namespace and VM Provisioning",
-          "notice": "Perform all actions for this task in a new namespace named 'db-app-ns'. To install packages inside the VM, you must first configure a custom repository. Create a file at '/etc/yum.repos.d/custom.repo' with the following content: [custom-db]\nname=Custom DB Repo\nbaseurl=http://repo.example.com/db_packages\nenabled=1\ngpgcheck=0",
+          "notice": "Perform all actions for this task in a new namespace named 'db-app-ns'. To install packages inside the VM, you must first configure a custom repository. Create a file at '/etc/yum.repos.d/custom.repo' with the following content: [custom-db]... (full content provided in prompt)",
           "subtasks": [
             "Create a new namespace named 'db-app-ns'.",
-            "Provision a new VM named 'db-server' from the RHEL9 template.",
+            "Provision a new VM named 'db-server' from a RHEL9 template.",
             "Inside the guest OS, install the 'mariadb-server' package using the provided repository details.",
             "Enable and start the 'mariadb' service."
           ]
@@ -23,6 +24,7 @@
     {
       "id": "task02",
       "title": "Configure dedicated storage for the database",
+      "solution": "# 1. Create Block PVC\noc create -f - -n db-app-ns <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: db-data-disk\nspec:\n  accessModes: [ReadWriteOnce]\n  volumeMode: Block\n  resources:\n    requests:\n      storage: 20Gi\nEOF\n\n# 2. Add volume to VM\n# Note: This requires the VM to be stopped to add a disk.\noc virt stop db-server -n db-app-ns\noc wait --for=condition=Ready=false vm/db-server -n db-app-ns --timeout=120s\n\noc patch vm db-server -n db-app-ns --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/disks/-\", \"value\": {\"name\": \"dbdata\", \"disk\": {\"bus\": \"virtio\"}}}, {\"op\": \"add\", \"path\": \"/spec/template/spec/volumes/-\", \"value\": {\"name\": \"dbdata\", \"persistentVolumeClaim\": {\"claimName\": \"db-data-disk\"}}}]'\n\noc virt start db-server -n db-app-ns\n\n# 3. Verify inside guest\n# oc console db-server -n db-app-ns\n# lsblk (should show a new disk like vdb)",
       "sections": [
         {
           "title": "Disk and Volume Management",
@@ -30,7 +32,8 @@
           "subtasks": [
             "Create a 20Gi PVC named 'db-data-disk' with a 'volumeMode' of 'Block'.",
             "Attach the PVC to the 'db-server' VM as a data volume.",
-            "Verify inside the guest OS that a new raw block device is available."
+            "Verify inside the guest OS that a new raw block device is available.",
+            "Do not create a filesystem on the block device."
           ]
         }
       ]
@@ -38,6 +41,7 @@
     {
       "id": "task03",
       "title": "Expose the database and configure RBAC",
+      "solution": "# 1. Create Service\noc expose vm db-server --name=db-svc --port=3306 --target-port=3306 -n db-app-ns\n\n# 2. Create User (assumes user does not exist)\n# In a real cluster, you would use an existing identity provider.\n# For this simulation, we create a placeholder user.\noc create user db-auditor\n\n# 3. Create Role\noc create role vm-viewer-role --verb=get,list --resource=virtualmachines -n db-app-ns\n\n# 4. Bind Role\noc create rolebinding db-auditor-binding --role=vm-viewer-role --user=db-auditor -n db-app-ns",
       "sections": [
         {
           "title": "Service and User Management",
@@ -45,7 +49,7 @@
           "subtasks": [
             "Create a ClusterIP service named 'db-svc' exposing port 3306 for the 'db-server' VM.",
             "Create a new user named 'db-auditor'.",
-            "Create a Role that only allows 'get' and 'list' access to VirtualMachine resources.",
+            "Create a Role named 'vm-viewer-role' that only allows 'get' and 'list' access to VirtualMachine resources.",
             "Bind this Role to the 'db-auditor' user in the 'db-app-ns' namespace."
           ]
         }
@@ -54,13 +58,15 @@
     {
       "id": "task04",
       "title": "Deploy a web server from a custom template",
+      "solution": "# 1. Create Namespace\noc create namespace web-app-ns\n\n# 2. Create Template\noc create -f - <<EOF\napiVersion: template.openshift.io/v1\nkind: Template\nmetadata:\n  name: httpd-template\n  namespace: web-app-ns\nobjects:\n- apiVersion: kubevirt.io/v1\n  kind: VirtualMachine\n  metadata:\n    name: \"${NAME}\"\n  spec:\n    template:\n      spec:\n        domain: {}\n        volumes:\n        - name: cloudinitdisk\n          cloudInitNoCloud:\n            userData: |\n              #cloud-config\n              packages:\n                - httpd\n              runcmd:\n                - [ systemctl, enable, --now, httpd ]\nEOF\n\n# 3. Deploy from Template\noc new-app --template=httpd-template --param=NAME=web-server -n web-app-ns",
       "sections": [
         {
           "title": "Template and VM Deployment",
           "notice": "First, create a custom template. Then, deploy a web server from it in a new 'web-app-ns' namespace.",
           "subtasks": [
             "Create a new namespace named 'web-app-ns'.",
-            "Create a new VM template named 'httpd-template' that uses a RHEL9 image and runs a command via cloud-init to install the 'httpd' package.",
+            "Create a new VM template named 'httpd-template' that uses a RHEL9 image.",
+            "Configure the template to use cloud-init to install the 'httpd' package and enable the service.",
             "Deploy a new VM named 'web-server' in 'web-app-ns' from the 'httpd-template'."
           ]
         }
@@ -69,13 +75,16 @@
     {
       "id": "task05",
       "title": "Configure networking between web and database servers",
+      "solution": "# 1. Create NetworkPolicy\noc create -f - -n db-app-ns <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-web-to-db\nspec:\n  podSelector:\n    matchLabels:\n      kubevirt.io/domain: db-server\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: web-app-ns\n    ports:\n    - protocol: TCP\n      port: 3306\nEOF",
       "sections": [
         {
           "title": "NetworkPolicy Configuration",
           "notice": "Allow the web server to connect to the database.",
           "subtasks": [
             "Create a NetworkPolicy in the 'db-app-ns' namespace.",
-            "The policy must allow ingress traffic on port 3306 to the 'db-server' VM only from pods within the 'web-app-ns' namespace."
+            "The policy must apply to the 'db-server' VM.",
+            "The policy must allow ingress traffic on port 3306.",
+            "The ingress traffic must only be from pods within the 'web-app-ns' namespace."
           ]
         }
       ]
@@ -83,13 +92,15 @@
     {
       "id": "task06",
       "title": "Backup the web server using OADP",
+      "solution": "# 1. Create Backup\noc create -f - -n openshift-adp <<EOF\napiVersion: velero.io/v1\nkind: Backup\nmetadata:\n  name: web-server-backup\nspec:\n  includedNamespaces:\n  - web-app-ns\n  snapshotVolumes: true\n  ttl: 720h0m0s\nEOF\n\n# 2. Verify\noc get backup web-server-backup -n openshift-adp -o jsonpath='{.status.phase}'",
       "sections": [
         {
           "title": "OADP Backup",
           "notice": "Perform a backup of the 'web-server' VM. Perform actions in the 'web-app-ns' namespace.",
           "subtasks": [
-            "Ensure the OADP operator is functional.",
+            "Ensure the OADP operator is functional and configured.",
             "Create a 'Backup' resource that targets the 'web-server' VM.",
+            "Exclude the VM's memory state from the backup.",
             "Verify the backup operation completes successfully."
           ]
         }
@@ -98,13 +109,16 @@
     {
       "id": "task07",
       "title": "Perform a live migration of the database server",
+      "solution": "# 1. Initiate Migration\noc virt migrate db-server -n db-app-ns\n\n# 2. Monitor\noc get vmim -n db-app-ns -w",
       "sections": [
         {
           "title": "Live Migration",
           "notice": "The node hosting 'db-server' needs maintenance. Migrate the VM without downtime.",
           "subtasks": [
+            "Identify the node where 'db-server' is running.",
             "Initiate a live migration for the 'db-server' VM.",
-            "Monitor the migration process to ensure it completes successfully."
+            "Monitor the migration process to ensure it completes successfully.",
+            "Confirm the VM is running on a different node post-migration."
           ]
         }
       ]
@@ -112,6 +126,7 @@
     {
       "id": "task08",
       "title": "Clone the web server for staging",
+      "solution": "# 1. Create Clone\noc create -f - -n web-app-ns <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineClone\nmetadata:\n  name: web-server-staging\nspec:\n  source:\n    kind: VirtualMachine\n    name: web-server\n  target:\n    name: web-server-staging\nEOF",
       "sections": [
         {
           "title": "VM Cloning",
@@ -119,6 +134,7 @@
           "subtasks": [
             "Create a clone of the 'web-server' VM.",
             "Name the new VM 'web-server-staging'.",
+            "Ensure the clone uses a different MAC address from the source.",
             "Verify the new VM starts successfully."
           ]
         }
@@ -127,13 +143,16 @@
     {
       "id": "task09",
       "title": "Configure a health probe for the web server",
+      "solution": "# 1. Add Readiness Probe\noc patch vm web-server -n web-app-ns --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/probes/-\", \"value\": {\"readinessProbe\": {\"httpGet\": {\"port\": 80, \"path\": \"/\"}, \"failureThreshold\": 3}}}]'",
       "sections": [
         {
           "title": "Readiness Probe",
           "notice": "Ensure 'web-server' only receives traffic when httpd is responsive. Perform actions in the 'web-app-ns' namespace.",
           "subtasks": [
             "Edit the 'web-server' VirtualMachine resource.",
-            "Add a readiness probe that performs an HTTP GET request on port 80."
+            "Add a readiness probe.",
+            "The probe should perform an HTTP GET request on port 80.",
+            "Configure the probe with a failure threshold of 3."
           ]
         }
       ]
@@ -141,13 +160,16 @@
     {
       "id": "task10",
       "title": "Create and restore a snapshot of the database server",
+      "solution": "# 1. Create Snapshot\noc create -f - -n db-app-ns <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineSnapshot\nmetadata:\n  name: db-server-snap1\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: db-server\nEOF\n\n# 2. Restore from Snapshot\noc create -f - -n db-app-ns <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineRestore\nmetadata:\n  name: db-server-restore1\nspec:\n  target:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: db-server\n  virtualMachineSnapshotName: db-server-snap1\nEOF",
       "sections": [
         {
           "title": "Snapshot and Restore",
           "notice": "Perform a snapshot and restore cycle on the 'db-server' VM. Perform actions in the 'db-app-ns' namespace.",
           "subtasks": [
             "Create a snapshot of the 'db-server' VM.",
-            "After completion, restore the VM from the snapshot."
+            "After completion, log into the VM and remove a non-critical file.",
+            "Restore the VM from the snapshot.",
+            "Verify the deleted file has been restored."
           ]
         }
       ]
@@ -155,14 +177,16 @@
     {
       "id": "task11",
       "title": "Configure a multi-homed VM",
+      "solution": "# 1. Create Namespace\noc create namespace multi-net-ns\n\n# 2. Create NAD\noc create -f - -n multi-net-ns <<EOF\napiVersion: \"k8s.cni.cncf.io/v1\"\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: internal-net\nspec:\n  config: |\n    {\"cniVersion\": \"0.3.1\", \"name\": \"internal-net\", \"type\": \"cnv-bridge\", \"bridge\": \"br0\", \"vlan\": 100}\nEOF\n\n# 3. Create VM with multiple interfaces\noc create -f - -n multi-net-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: router-vm\nspec:\n  template:\n    spec:\n      domain: {}\n      networks:\n      - name: default\n        pod: {}\n      - name: internal-net\n        multus:\n          networkName: internal-net\n      domain:\n        devices:\n          interfaces:\n          - name: default\n            masquerade: {}\n          - name: internal-net\n            bridge: {}\nEOF\n",
       "sections": [
         {
           "title": "Multus Networking",
           "notice": "Create a new VM that is connected to two different networks. Perform actions in a new 'multi-net-ns' namespace.",
           "subtasks": [
             "Create a new namespace named 'multi-net-ns'.",
-            "Create a NetworkAttachmentDefinition named 'internal-net' for a bridge network.",
-            "Deploy a new VM named 'router-vm' attached to both the default pod network and the 'internal-net'."
+            "Create a NetworkAttachmentDefinition named 'internal-net' for a linux-bridge network.",
+            "Deploy a new VM named 'router-vm'.",
+            "Attach the VM to both the default pod network and the 'internal-net'."
           ]
         }
       ]
@@ -170,12 +194,14 @@
     {
       "id": "task12",
       "title": "Prepare a node for maintenance",
+      "solution": "# 1. Select a node\nNODE_TO_DRAIN=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[0].metadata.name}')\n\n# 2. Taint the node\noc adm taint node $NODE_TO_DRAIN key=maintenance:NoSchedule\n\n# 3. Drain the node\noc adm drain $NODE_TO_DRAIN --ignore-daemonsets --delete-local-data\n\n# 4. Verify\noc get pods --all-namespaces -o wide | grep $NODE_TO_DRAIN # Should be empty except for daemonsets\n",
       "sections": [
         {
           "title": "Node Drain",
           "notice": "A worker node needs to be updated. Safely drain it of all VMs.",
           "subtasks": [
             "Select a worker node running at least one VM.",
+            "Taint the node to prevent new pods from being scheduled.",
             "Use 'oc adm drain' to gracefully evict all VMs from the node.",
             "Verify the VMs are migrated and the node is marked as unschedulable."
           ]
@@ -185,13 +211,16 @@
     {
       "id": "task13",
       "title": "Expose the staging web server with a Route",
+      "solution": "# 1. Create Service\noc expose vm web-server-staging --name=staging-svc --port=80 --target-port=80 -n web-app-ns\n\n# 2. Create Route\noc create route edge --service=staging-svc --port=80 -n web-app-ns\n\n# 3. Verify\noc get route web-server-staging -n web-app-ns\n",
       "sections": [
         {
           "title": "Route Configuration",
           "notice": "Expose the 'web-server-staging' VM externally. Perform actions in the 'web-app-ns' namespace.",
           "subtasks": [
-            "Create a ClusterIP service for 'web-server-staging'.",
-            "Create a Route that exposes the service, allowing OpenShift to generate the hostname."
+            "Create a ClusterIP service for 'web-server-staging' on port 80.",
+            "Create a Route that exposes the service.",
+            "Ensure the route uses the default host generated by OpenShift.",
+            "Verify the route is accessible."
           ]
         }
       ]
@@ -199,6 +228,7 @@
     {
       "id": "task14",
       "title": "Detach a disk from a VM",
+      "solution": "# 1. Add disk\noc virt addvolume web-server-staging --volume-name=temp-disk --claim-size=5Gi -n web-app-ns\n\n# 2. Stop VM\noc virt stop web-server-staging -n web-app-ns\n\n# 3. Remove disk\noc virt removevolume web-server-staging --volume-name=temp-disk -n web-app-ns\n\n# 4. Start VM\noc virt start web-server-staging -n web-app-ns\n",
       "sections": [
         {
           "title": "Disk Management",
@@ -207,7 +237,7 @@
             "First, add a new 5Gi data volume to 'web-server-staging' named 'temp-disk'.",
             "Shut down the VM.",
             "Remove the 'temp-disk' data volume from the VM definition.",
-            "Start the VM and verify the disk is gone."
+            "Start the VM and verify the disk is gone from the guest OS."
           ]
         }
       ]

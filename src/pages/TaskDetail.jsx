@@ -17,6 +17,8 @@ const TaskDetail = () => {
     {}
   );
 
+  const [showSolution, setShowSolution] = React.useState(false);
+
   if (!task || !currentExam) {
     return <NotFound />;
   }
@@ -29,6 +31,9 @@ const TaskDetail = () => {
     }));
   };
 
+  // Placeholder solution content
+  const solutionContent = `Solution for ${task.title}:\n\n# This will be populated with actual solution scripts.\noc get vm ${task.id} -o yaml`;
+
   return (
     <div>
       <Breadcrumbs exam={currentExam} task={task} />
@@ -40,7 +45,7 @@ const TaskDetail = () => {
       {task.sections.map((section, sectionIndex) => (
         <section key={sectionIndex} className="task-section">
           <h2 className="section-title">{section.title}</h2>
-          {section.notice && <p className="section-notice">{section.notice}</p>}
+          {section.notice && <p className="section-notice" dangerouslySetInnerHTML={{ __html: section.notice.replace(/\n/g, '<br />') }}></p>}
           
           <ul className="subtask-list">
             {section.subtasks.map((subtask, subtaskIndex) => (
@@ -58,6 +63,20 @@ const TaskDetail = () => {
           </ul>
         </section>
       ))}
+
+      <hr />
+      <div style={{ marginTop: '2rem' }}>
+        <button onClick={() => setShowSolution(!showSolution)} className="btn">
+          {showSolution ? 'Hide Solution' : 'Show Solution'}
+        </button>
+        {showSolution && (
+            <div style={{ marginTop: '1rem' }}>
+                <pre style={{ background: '#f4f4f4', padding: '1rem', borderRadius: '4px', border: '1px solid #ddd' }}>
+                    {solutionContent}
+                </pre>
+            </div>
+        )}
+      </div>
     </div>
   );
 };

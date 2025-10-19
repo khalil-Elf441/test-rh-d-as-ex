@@ -1,24 +1,22 @@
-
 {
   "examId": "ex316-6",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 6: Full Spectrum Exam VI",
-  "description": "A final, comprehensive 13-task exam focusing on troubleshooting, advanced features, and complex multi-step scenarios.",
-  "timeLimit": "4 hours",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 6: Final Version",
+  "description": "A final, comprehensive exam focusing on troubleshooting, advanced features, and complex multi-step scenarios.",
+  "prerequisites": "# This script should be run once before starting the exam.\n\necho \"Creating prerequisite resources for Mock 6...\"\n\n# Pre-create a namespace with a restrictive policy to set up a troubleshooting task\noc create namespace troubleshooting || true\noc apply -f - <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: default-deny-all\n  namespace: troubleshooting\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  - Egress\nEOF\n\necho \"Prerequisite setup complete.\"\n",
   "tasks": [
     {
       "id": "task01",
       "title": "Troubleshoot and fix a VM failing to start",
+      "solution": "# 1. Deploy the VM (it will fail due to the pre-existing 'default-deny-all' policy)\noc create -f - -n troubleshooting <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: backend-vm\n  labels:\n    app: backend\nspec:\n  runStrategy: Always\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: backend-vm\n    spec:\n      domain: {}\n      volumes: []\nEOF\n\n# 2. Diagnose the issue\noc get pods -n troubleshooting -w # Observe CrashLoopBackOff or failing readiness\noc describe pod -l kubevirt.io/domain=backend-vm -n troubleshooting # Look for probe failures\n\n# 3. Create a new policy to allow egress\noc create -f - -n troubleshooting <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-vm-egress\nspec:\n  podSelector:\n    matchLabels:\n      app: backend\n  policyTypes:\n  - Egress\n  egress:\n  - to:\n    - ipBlock:\n        cidr: 0.0.0.0/0\n    ports:\n    - protocol: TCP\n      port: 443\nEOF\n\n# 4. VM should now start correctly. Delete and recreate if necessary.\noc delete vm backend-vm -n troubleshooting\n# (re-run step 1)\n",
       "sections": [
         {
-          "title": "Debugging a CrashLoopBackOff",
-          "notice": "In a new namespace 'troubleshooting', a VM is failing to start. Diagnose and fix the issue.",
+          "title": "Debugging Network Policy",
+          "notice": "In the pre-created 'troubleshooting' namespace, a NetworkPolicy is blocking a new VM from starting correctly. Find and fix the issue.",
           "subtasks": [
-            "Create the 'troubleshooting' namespace.",
-            "A VM named 'failing-vm' has been pre-defined to reference a non-existent secret. Deploy it.",
-            "Observe the virt-launcher pod enters a 'CrashLoopBackOff' state.",
-            "Examine the pod logs to identify the error related to the missing secret.",
-            "Create the required secret named 'vm-secret'.",
-            "Verify the VM now starts correctly."
+            "Deploy a new VM named 'backend-vm' that needs to contact an external service on port 443 to boot.",
+            "Observe that the VM fails its readiness checks.",
+            "Identify the 'default-deny-all' NetworkPolicy is blocking egress traffic.",
+            "Create a new NetworkPolicy to allow egress traffic on port 443 for the 'backend-vm', allowing it to start."
           ]
         }
       ]
@@ -26,14 +24,16 @@
     {
       "id": "task02",
       "title": "Access a VM with a broken network using the serial console",
+      "solution": "# 1. Access console\nvirtctl console backend-vm -n troubleshooting\n\n# 2. Log in and diagnose\n# (Perform standard Linux network troubleshooting, e.g., ip a, resolve.conf, etc.)\n\n# 3. Fix the configuration\n# (e.g., Edit /etc/sysconfig/network-scripts/ifcfg-eth0)\n\n# 4. Reboot and verify\n# sudo reboot\n# After reboot, oc rsh to the pod or virtctl ssh to verify connectivity.",
       "sections": [
         {
           "title": "Serial Console Recovery",
-          "notice": "The network on 'failing-vm' has been misconfigured from inside the guest. Regain access and fix it.",
+          "notice": "The network on 'backend-vm' has been misconfigured from inside the guest. Regain access and fix it.",
           "subtasks": [
-            "Use 'virtctl console failing-vm' to access the serial console.",
+            "Use 'virtctl console backend-vm' to access the serial console.",
             "Log in and correct the network configuration files within the guest OS.",
-            "Reboot the VM and confirm network connectivity is restored."
+            "Reboot the VM.",
+            "Confirm network connectivity is restored."
           ]
         }
       ]
@@ -41,6 +41,8 @@
     {
       "id": "task03",
       "title": "Configure a high-performance VM with SR-IOV and dedicated CPUs",
+      "solution": "# 1. Create Namespace\noc create namespace hpc-apps\n\n# 2. Create Block PVC\noc create -f - -n hpc-apps <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: hpc-block-disk\nspec:\n  accessModes: [ReadWriteOnce]\n  volumeMode: Block\n  resources:\n    requests:\n      storage: 50Gi\nEOF\n\n# 3. Create SR-IOV NAD (if not present)\n# This requires the SR-IOV operator to be configured.\noc create -f - -n hpc-apps <<EOF\napiVersion: \"k8s.cni.cncf.io/v1\"\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: sriov-net\nspec:\n  config: |\n    {\"type\": \"sriov\", \"cniVersion\": \"0.3.1\", \"name\": \"sriov-net\", \"ipam\": {}}
+EOF\n\n# 4. Create VM\noc create -f - -n hpc-apps <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: hpc-vm\nspec:\n  template:\n    spec:\n      networks:\n      - name: sriov-net\n        multus:\n          networkName: sriov-net\n      domain:\n        cpu:\n          dedicatedCpuPlacement: true\n        resources:\n          requests:\n            cpu: 2\n            memory: 8Gi\n          limits:\n            cpu: 2\n            memory: 8Gi\n        devices:\n          interfaces:\n          - name: sriov-net\n            sriov: {}\n          disks:\n          - name: blockdisk\n            disk: {}\n      volumes:\n      - name: blockdisk\n        persistentVolumeClaim:\n          claimName: hpc-block-disk\nEOF\n",
       "sections": [
         {
           "title": "SR-IOV and CPU Pinning",
@@ -58,6 +60,7 @@
     {
       "id": "task04",
       "title": "Configure a custom Route and RBAC for the HPC application",
+      "solution": "# 1. Create Service\noc expose vm hpc-vm --name=hpc-svc --port=8080 --target-port=8080 -n hpc-apps\n\n# 2. Create Route\noc create route edge --service=hpc-svc --path=/hpc/data -n hpc-apps\n\n# 3. Create User and RoleBinding\noc create user hpc-user\noc create rolebinding hpc-user-view --clusterrole=view --user=hpc-user -n hpc-apps\n",
       "sections": [
         {
           "title": "Service, Route, and User Management",
@@ -65,7 +68,8 @@
           "subtasks": [
             "Create a ClusterIP service for 'hpc-vm'.",
             "Create a Route with a custom path of '/hpc/data' that points to the service.",
-            "Create a user 'hpc-user' who has view-only access to all resources in the 'hpc-apps' namespace."
+            "Create a user 'hpc-user' who has view-only access to all resources in the 'hpc-apps' namespace.",
+            "Bind the appropriate role to the user."
           ]
         }
       ]
@@ -73,6 +77,7 @@
     {
       "id": "task05",
       "title": "Troubleshoot a failing live migration",
+      "solution": "# 1. Attempt migration (will fail)\noc virt migrate hpc-vm -n hpc-apps\n\n# 2. Diagnose\n# Wait a moment for the VMIM to show a failure status\noc get vmim -n hpc-apps\n# Check logs of virt-handler on the source node\n# oc logs -n openshift-cnv -l=app=virt-handler,kubevirt.io=virt-handler --tail=100\n\n# 3. Remove SR-IOV interface\noc patch vm hpc-vm -n hpc-apps --type=json -p '[{\"op\": \"remove\", \"path\": \"/spec/template/spec/networks/0\"}, {\"op\": \"remove\", \"path\": \"/spec/template/spec/domain/devices/interfaces/0\"}]'\n\n# 4. Retry migration\noc virt migrate hpc-vm -n hpc-apps\n",
       "sections": [
         {
           "title": "Debugging Migration",
@@ -89,6 +94,7 @@
     {
       "id": "task06",
       "title": "Backup and Restore the HPC VM to a different StorageClass",
+      "solution": "# 1. Create Backup\noc create -f - -n openshift-adp <<EOF\napiVersion: velero.io/v1\nkind: Backup\nmetadata:\n  name: hpc-vm-backup\nspec:\n  includedNamespaces:\n  - hpc-apps\nEOF\n\n# 2. Wait for backup to complete\noc get backup hpc-vm-backup -n openshift-adp -w\n\n# 3. Delete VM and PVCs\noc delete vm hpc-vm -n hpc-apps\noc delete pvc hpc-block-disk -n hpc-apps\n\n# 4. Restore with StorageClass mapping\noc create -f - -n openshift-adp <<EOF\napiVersion: velero.io/v1\nkind: Restore\nmetadata:\n  name: hpc-vm-restore\nspec:\n  backupName: hpc-vm-backup\n  storageClassMapping:\n    <fast-storage-class>: <slow-storage-class>\nEOF\n",
       "sections": [
         {
           "title": "OADP Storage Tier Migration",
@@ -105,6 +111,7 @@
     {
       "id": "task07",
       "title": "Create a VM from a container disk image",
+      "solution": "# 1. Create Namespace\noc create namespace container-vms\n\n# 2. Create VM with ContainerDisk\noc create -f - -n container-vms <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: container-vm\nspec:\n  runStrategy: Always\n  template:\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk: {}\n          - name: cloudinitdisk\n            disk: {}\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: registry.redhat.io/rhel9/rhel-guest-image:9.2\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            password: password\n            chpasswd: { expire: False }\nEOF\n",
       "sections": [
         {
           "title": "ContainerDisk VM",
@@ -112,7 +119,8 @@
           "subtasks": [
             "Create the 'container-vms' namespace.",
             "Find a suitable container disk image.",
-            "Create a VM named 'container-vm' that uses the container disk as its root volume."
+            "Create a VM named 'container-vm' that uses the container disk as its root volume.",
+            "Ensure the VM starts and is accessible."
           ]
         }
       ]
@@ -120,6 +128,7 @@
     {
       "id": "task08",
       "title": "Upload a local image file to a PVC",
+      "solution": "# 1. Create PVC\noc create -f - -n container-vms <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: upload-pvc\nspec:\n  accessModes:\n  - ReadWriteOnce\n  resources:\n    requests:\n      storage: 10Gi\nEOF\n\n# 2. Upload image (assumes 'special.img' exists locally)\nvirtctl image-upload pvc upload-pvc --image-path=/path/to/special.img --size=10Gi -n container-vms\n\n# 3. Attach to VM\noc virt addvolume container-vm --volume-name=special-disk --claim-name=upload-pvc -n container-vms\n",
       "sections": [
         {
           "title": "Virtctl Image Upload",
@@ -127,7 +136,8 @@
           "subtasks": [
             "Create a new 10Gi PVC named 'upload-pvc'.",
             "Use 'virtctl image-upload' to upload the local 'special.img' file to the PVC.",
-            "Attach the populated PVC as a secondary disk to the 'container-vm'."
+            "Attach the populated PVC as a secondary disk to the 'container-vm'.",
+            "Verify the disk is present in the guest OS."
           ]
         }
       ]
@@ -135,6 +145,7 @@
     {
       "id": "task09",
       "title": "Change the default boot order of a VM",
+      "solution": "# 1. Patch the VM to set boot order\noc patch vm container-vm -n container-vms --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/interfaces/0/bootOrder\", \"value\": 1}, {\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/disks/0/bootOrder\", \"value\": 2}]'\n\n# 2. Restart the VM to apply changes\noc virt restart container-vm -n container-vms\n\n# 3. Observe console\n# virtctl console container-vm -n container-vms # (Look for PXE boot messages)\n",
       "sections": [
         {
           "title": "PXE Boot Simulation",
@@ -151,6 +162,7 @@
     {
       "id": "task10",
       "title": "Perform an offline snapshot and clone from it",
+      "solution": "# 1. Stop the VM\noc virt stop container-vm -n container-vms\n\n# 2. Create Snapshot\noc create -f - -n container-vms <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineSnapshot\nmetadata:\n  name: container-vm-snap\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: container-vm\nEOF\n\n# 3. Wait for snapshot to be ready\noc wait --for=condition=Ready vmsnapshot/container-vm-snap -n container-vms --timeout=300s\n\n# 4. Create new VM from snapshot\noc create -f - -n container-vms <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: clone-from-snap\nspec:\n  restore:\n    snapshot: \n      name: container-vm-snap\n      kind: VirtualMachineSnapshot\n  template: {}\nEOF\n",
       "sections": [
         {
           "title": "Snapshot and Clone",
@@ -167,13 +179,16 @@
     {
       "id": "task11",
       "title": "Install a package from a custom repo",
+      "solution": "# This task is performed inside the VM.\n# 1. Access the VM\noc console clone-from-snap -n container-vms\n\n# 2. Create repo file\nsudo -i\necho -e \"[local]\\nname=Local Tools\\nbaseurl=http://repo.example.com/local_tools\\nenabled=1\\ngpgcheck=0\" > /etc/yum.repos.d/local.repo\n\n# 3. Install package\ndnf install -y strace\n\n# 4. Verify\nwhich strace\n",
       "sections": [
         {
           "title": "System Administration",
-          "notice": "Install a tool on 'clone-from-snap'. To do this, first configure a custom repository inside the VM. Create a repo file '/etc/yum.repos.d/local.repo' with content: [local]\nname=Local Tools\nbaseurl=http://repo.example.com/local_tools\nenabled=1\ngpgcheck=0. Perform actions in the 'container-vms' namespace.",
+          "notice": "Install a tool on 'clone-from-snap'. Repo details: URL: http://repo.example.com/local_tools, File: /etc/yum.repos.d/local.repo, Content: [local]... Perform actions in the 'container-vms' namespace.",
           "subtasks": [
             "Log into 'clone-from-snap'.",
-            "Install the 'sys-admin-tool' package using the provided repository details."
+            "Configure the custom repository as specified.",
+            "Install the 'strace' package.",
+            "Confirm the tool is available in the system path."
           ]
         }
       ]
@@ -181,6 +196,7 @@
     {
       "id": "task12",
       "title": "Forcefully delete a stuck VM",
+      "solution": "# 1. Create a temporary VM to work with\noc process -n openshift rhel9 --param NAME=temp-stuck-vm | oc create -n default -f -\n\n# 2. Attempt to delete it while it is still starting\n# This may not always work to get it stuck, but it simulates the scenario.\noc delete vm temp-stuck-vm -n default\n\n# 3. If it gets stuck in Terminating, force stop it\n# (The name of the VMI is the same as the VM)\nvirtctl stop vm temp-stuck-vm -n default --force --grace-period 0\n\n# 4. Verify\noc get vm temp-stuck-vm -n default # Should be gone\n",
       "sections": [
         {
           "title": "Force Deletion",
@@ -188,7 +204,8 @@
           "subtasks": [
             "Create a temporary VM and then try to delete it while it is still starting up to simulate a stuck state.",
             "When it fails to delete, use 'virtctl stop' with the '--force' option and a grace period of 0.",
-            "Verify the VM and its pod are removed."
+            "Verify the VM and its pod are removed.",
+            "Ensure no orphaned resources remain."
           ]
         }
       ]

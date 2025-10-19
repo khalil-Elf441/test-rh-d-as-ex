@@ -1,19 +1,21 @@
 {
   "examId": "ex316-3",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 3: Full Spectrum Exam III",
-  "description": "A comprehensive 14-task exam covering a wide range of objectives including storage management, templates, and recovery.",
-  "timeLimit": "4 hours",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 3: Final Version",
+  "description": "A comprehensive exam focusing on storage management, template customization, and disaster recovery using OADP.",
+  "prerequisites": "# This script should be run once before starting the exam.\n\necho \"Creating prerequisite resources for Mock 3...\"\n\n# This mock requires the OADP Operator and a configured backup location.\n# The user is expected to install the operator as part of the exam.\n\necho \"Prerequisite setup complete.\"\n",
   "tasks": [
     {
       "id": "task01",
       "title": "Deploy and Configure OADP for Virtual Machine Backup",
+      "solution": "# 1. Install Operator via OperatorHub\n# (UI-based task, search for OADP Operator for OpenShift Virtualization)\n\n# 2. Create DataProtectionApplication (DPA)\n# Note: This assumes a secret named 'cloud-credentials' with S3 keys exists in the 'openshift-adp' namespace.\noc create -f - -n openshift-adp <<EOF\napiVersion: oadp.openshift.io/v1alpha1\nkind: DataProtectionApplication\nmetadata:\n  name: velero-dpa\nspec:\n  backupLocations:\n  - velero:\n      config:\n        profile: default\n        region: us-east-1\n      credential:\n        key: cloud\n        name: cloud-credentials\n      default: true\n      objectStorage:\n        bucket: your-s3-bucket-name\n        prefix: velero\n      provider: aws\n  configuration:\n    restic:\n      enable: true\n    velero:\n      defaultPlugins:\n      - openshift\n      - csi\n      - kubevirt\nEOF\n\n# 3. Verify\noc get pods -n openshift-adp -w\n",
       "sections": [
         {
           "title": "Operator Deployment",
           "notice": "The OADP Operator is required for backup and restore tasks. Perform all actions in the 'openshift-adp' namespace.",
           "subtasks": [
             "Install the 'OADP Operator for OpenShift Virtualization'.",
-            "Create a 'DataProtectionApplication' (DPA) resource, configuring it to use a specified S3-compatible backup location.",
+            "Create a 'DataProtectionApplication' (DPA) resource.",
+            "Configure the DPA to use a specified S3-compatible backup location.",
             "Verify the OADP pods are running correctly."
           ]
         }
@@ -22,14 +24,16 @@
     {
       "id": "task02",
       "title": "Deploy a Multi-Tier Application",
+      "solution": "# 1. Create Namespaces\noc create namespace frontend-prod\noc create namespace backend-prod\n\n# 2. Deploy Frontend VM\noc process -n openshift rhel9 --param NAME=frontend-vm | oc create -n frontend-prod -f -\n# Then, access the VM console to install nginx\n# oc console frontend-vm -n frontend-prod\n# sudo dnf install -y nginx && sudo systemctl enable --now nginx\n\n# 3. Deploy Backend VM\noc process -n openshift rhel9 --param NAME=backend-vm | oc create -n backend-prod -f -\n# Then, access the VM console to install postgresql\n# oc console backend-vm -n backend-prod\n# sudo dnf install -y postgresql-server && sudo postgresql-setup --initdb && sudo systemctl enable --now postgresql\n",
       "sections": [
         {
           "title": "VM Provisioning",
           "notice": "Deploy a web server and a database, each in its own namespace: 'frontend-prod' and 'backend-prod'.",
           "subtasks": [
             "Create the namespaces 'frontend-prod' and 'backend-prod'.",
-            "In 'frontend-prod', deploy a VM named 'frontend-vm'. Install 'nginx' inside it.",
-            "In 'backend-prod', deploy a VM named 'backend-vm'. Install 'postgresql' inside it."
+            "In 'frontend-prod', deploy a VM named 'frontend-vm' and install 'nginx' inside it.",
+            "In 'backend-prod', deploy a VM named 'backend-vm' and install 'postgresql-server' inside it.",
+            "Confirm both VMs are in a Running state."
           ]
         }
       ]
@@ -37,13 +41,14 @@
     {
       "id": "task03",
       "title": "Configure Storage and Networking for the Application",
+      "solution": "# 1. Create and Attach PVC\noc virt addvolume backend-vm --volume-name=pg-disk --claim-size=15Gi -n backend-prod\n\n# 2. Configure disk inside VM\n# oc console backend-vm -n backend-prod\n# sudo mkfs.xfs /dev/vdb\n# sudo mkdir /var/lib/pgsql\n# sudo mount /dev/vdb /var/lib/pgsql\n# echo \"/dev/vdb /var/lib/pgsql xfs defaults 0 0\" | sudo tee -a /etc/fstab\n\n# 3. Create Service\noc expose vm backend-vm --name=backend-svc --port=5432 --target-port=5432 -n backend-prod\n\n# 4. Create NetworkPolicy\noc create -f - -n backend-prod <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-frontend-to-backend\nspec:\n  podSelector:\n    matchLabels:\n      kubevirt.io/domain: backend-vm\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: frontend-prod\n    ports:\n    - protocol: TCP\n      port: 5432\nEOF\n",
       "sections": [
         {
           "title": "Disk and Network Configuration",
           "notice": "The backend requires a dedicated disk and must be accessible by the frontend.",
           "subtasks": [
             "In 'backend-prod', create a 15Gi PVC named 'pg-disk' and attach it to 'backend-vm'.",
-            "Inside 'backend-vm', create a filesystem on the new disk and mount it on '/var/lib/pgsql'.",
+            "Inside 'backend-vm', create a filesystem on the new disk and mount it persistently on '/var/lib/pgsql'.",
             "In 'backend-prod', create a ClusterIP service for 'backend-vm' on port 5432.",
             "Create a NetworkPolicy in 'backend-prod' to allow ingress from 'frontend-prod'."
           ]
@@ -53,6 +58,7 @@
     {
       "id": "task04",
       "title": "Back up the Entire Application",
+      "solution": "# 1. Create Backup CR\noc create -f - -n openshift-adp <<EOF\napiVersion: velero.io/v1\nkind: Backup\nmetadata:\n  name: multitier-app-backup\nspec:\n  includedNamespaces:\n  - frontend-prod\n  - backend-prod\n  snapshotVolumes: true\n  ttl: 720h0m0s\nEOF\n\n# 2. Verify Backup\noc get backup multitier-app-backup -n openshift-adp -w\n",
       "sections": [
         {
           "title": "OADP Multi-Namespace Backup",
@@ -60,6 +66,7 @@
           "subtasks": [
             "Create a 'Backup' resource named 'multitier-app-backup'.",
             "Configure the backup to include both the 'frontend-prod' and 'backend-prod' namespaces.",
+            "Ensure the backup includes volume snapshots.",
             "Verify the backup completes successfully."
           ]
         }
@@ -68,6 +75,7 @@
     {
       "id": "task05",
       "title": "Restore the Application to a New Set of Namespaces",
+      "solution": "# 1. Delete original namespaces\noc delete project frontend-prod\noc delete project backend-prod\n\n# 2. Create Restore CR with namespace mapping\noc create -f - -n openshift-adp <<EOF\napiVersion: velero.io/v1\nkind: Restore\nmetadata:\n  name: multitier-app-restore\nspec:\n  backupName: multitier-app-backup\n  namespaceMapping:\n    frontend-prod: frontend-dr\n    backend-prod: backend-dr\nEOF\n\n# 3. Verify\noc get restore multitier-app-restore -n openshift-adp -w\noc get vm -n frontend-dr\noc get vm -n backend-dr\n",
       "sections": [
         {
           "title": "OADP Restore with Namespace Mapping",
@@ -75,7 +83,8 @@
           "subtasks": [
             "Create a 'Restore' resource from the 'multitier-app-backup'.",
             "Use 'namespaceMapping' to map 'frontend-prod' to 'frontend-dr' and 'backend-prod' to 'backend-dr'.",
-            "Verify both VMs are restored and running in their new respective namespaces."
+            "Verify both VMs are restored and running in their new respective namespaces.",
+            "Confirm the restored application is functional."
           ]
         }
       ]
@@ -83,6 +92,7 @@
     {
       "id": "task06",
       "title": "Create a Custom Template with Cloud-Init",
+      "solution": "# 1. Create Namespace\noc create namespace corp-templates\n\n# 2. Create Template with networkData\noc create -f - -n corp-templates <<EOF\napiVersion: template.openshift.io/v1\nkind: Template\nmetadata:\n  name: rhel9-static-net\nobjects:\n- apiVersion: kubevirt.io/v1\n  kind: VirtualMachine\n  metadata:\n    name: \"${NAME}\"\n  spec:\n    template:\n      spec:\n        domain: {}\n        volumes:\n        - name: cloudinitdisk\n          cloudInitNoCloud:\n            networkData: |\n              version: 2\n              ethernets:\n                eth0:\n                  dhcp4: no\n                  addresses: [192.168.100.10/24]\n                  gateway4: 192.168.100.1\n                  nameservers:\n                    addresses: [8.8.8.8]\nparameters:\n- name: NAME\n  required: true\nEOF\n\n# 3. Deploy test VM\noc new-app --template=rhel9-static-net --param=NAME=test-static -n corp-templates\n",
       "sections": [
         {
           "title": "Template with Static Networking",
@@ -90,7 +100,8 @@
           "subtasks": [
             "Create the 'corp-templates' namespace.",
             "Create a new template named 'rhel9-static-net'.",
-            "Use cloud-init 'networkData' to configure the primary interface with a static IP address."
+            "Use cloud-init 'networkData' to configure the primary interface with a static IP address.",
+            "Deploy a test VM from this template to verify it boots with the correct static IP."
           ]
         }
       ]
@@ -98,13 +109,16 @@
     {
       "id": "task07",
       "title": "Generate a Template from a Running VM",
+      "solution": "# This is best done via the Web Console: Administrator -> Virtualization -> Templates -> Create Template from VM.\n# The equivalent manual YAML would be:\n\n# 1. Find the source PVC name for frontend-vm\nSOURCE_PVC=$(oc get dv -n frontend-prod -l kubevirt.io/domain=frontend-vm -o jsonpath='{.items[0].metadata.name}')\n\n# 2. Create the template in the new namespace\noc create -f - -n corp-templates <<EOF\napiVersion: template.openshift.io/v1\nkind: Template\nmetadata:\n  name: live-frontend-template\nobjects:\n- apiVersion: kubevirt.io/v1\n  kind: VirtualMachine\n  metadata:\n    name: \"${NAME}\"\n  spec:\n    dataVolumeTemplates:\n    - apiVersion: cdi.kubevirt.io/v1beta1\n      kind: DataVolume\n      metadata:\n        name: \"${NAME}-rootdisk\"\n      spec:\n        source:\n          pvc:\n            name: $SOURCE_PVC\n            namespace: frontend-prod\n        pvc:\n          accessModes:\n          - ReadWriteOnce\n          resources:\n            requests:\n              storage: 20Gi\n    template:\n      spec:\n        domain: {}\n        volumes: []\nparameters:\n- name: NAME\n  required: true\nEOF\n",
       "sections": [
         {
           "title": "Live Template Generation",
           "notice": "Create a template from the running 'frontend-vm' in the 'frontend-prod' namespace.",
           "subtasks": [
             "Ensure 'frontend-vm' uses a storage class that supports snapshots.",
-            "Generate a new template named 'live-frontend-template' in the 'corp-templates' namespace from the running VM."
+            "Generate a new template named 'live-frontend-template' in the 'corp-templates' namespace from the running VM.",
+            "Review the generated template objects.",
+            "Deploy a test VM from the new template."
           ]
         }
       ]
@@ -112,13 +126,16 @@
     {
       "id": "task08",
       "title": "Clone a VM's Disk using a DataVolume",
+      "solution": "# 1. Create DataVolume to clone the PVC\noc create -f - -n backend-prod <<EOF\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: pg-disk-clone-dv\nspec:\n  source:\n    pvc:\n      namespace: backend-prod\n      name: pg-disk\n  pvc:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 15Gi\n    storageClassName: <new-or-same-storage-class>\nEOF\n\n# 2. Verify the new PVC is created\noc get pvc pg-disk-clone-dv -n backend-prod\n\n# 3. Attach to a temporary VM to verify (optional)\n# ...\n",
       "sections": [
         {
           "title": "Disk Cloning",
           "notice": "Clone the 'pg-disk' PVC for analysis. Perform actions in the 'backend-prod' namespace.",
           "subtasks": [
             "Create a DataVolume that clones the 'pg-disk' PVC to a new PVC named 'pg-disk-clone'.",
-            "Verify the new PVC is created and populated."
+            "Ensure the new PVC has a different storage class than the source.",
+            "Verify the new PVC is created and populated.",
+            "Attach the cloned PVC to a new temporary VM to verify its contents."
           ]
         }
       ]
@@ -126,6 +143,7 @@
     {
       "id": "task09",
       "title": "Configure RBAC for a Template User",
+      "solution": "# 1. Create User\noc create user template-user\n\n# 2. Create Role\noc create role template-viewer -n corp-templates --verb=get,list --resource=templates\n\n# 3. Create RoleBinding\noc create rolebinding template-user-binding --role=template-viewer --user=template-user -n corp-templates\n\n# 4. Verify (as the user)\n# oc login -u template-user\n# oc get templates -n corp-templates # (Should succeed)\n# oc get vm -n corp-templates # (Should fail)\n",
       "sections": [
         {
           "title": "User Permissions",
@@ -133,7 +151,8 @@
           "subtasks": [
             "Create a user named 'template-user'.",
             "Create a Role in the 'corp-templates' namespace that grants 'get' and 'list' access to Template resources.",
-            "Bind this role to the 'template-user'."
+            "Bind this role to the 'template-user'.",
+            "Verify the user can list templates but cannot create VMs."
           ]
         }
       ]
@@ -141,13 +160,16 @@
     {
       "id": "task10",
       "title": "Expose the Restored Frontend VM with a Route",
+      "solution": "# 1. Create Service\noc expose vm frontend-vm --name=frontend-dr-svc --port=80 --target-port=80 -n frontend-dr\n\n# 2. Create Route\noc create route edge --service=frontend-dr-svc --port=80 -n frontend-dr\n\n# 3. Verify\n# oc get route frontend-vm -n frontend-dr\n# curl http://<route-host>\n",
       "sections": [
         {
           "title": "External Access",
           "notice": "Expose the 'frontend-vm' in the 'frontend-dr' namespace externally.",
           "subtasks": [
             "Create a ClusterIP service for the VM.",
-            "Create a Route to expose the service."
+            "Create a Route to expose the service.",
+            "Ensure the route is accessible.",
+            "Configure the route for edge termination."
           ]
         }
       ]
@@ -155,13 +177,16 @@
     {
       "id": "task11",
       "title": "Perform a Live Migration of the Backend VM",
+      "solution": "# 1. Initiate Migration\noc virt migrate backend-vm -n backend-prod\n\n# 2. Monitor Migration\noc get vmim -n backend-prod -w\n\n# 3. Verify new node\n# oc get pod -l kubevirt.io/domain=backend-vm -n backend-prod -o wide\n",
       "sections": [
         {
           "title": "Live Migration",
           "notice": "Migrate the 'backend-vm' to another node without downtime.",
           "subtasks": [
             "Initiate a live migration for the 'backend-vm'.",
-            "Monitor the migration to completion."
+            "Monitor the migration to completion.",
+            "Verify the VM is running on a different node.",
+            "Confirm the application remains responsive during migration."
           ]
         }
       ]
@@ -169,12 +194,16 @@
     {
       "id": "task12",
       "title": "Configure a Health Probe for the Backend VM",
+      "solution": "# 1. Add Liveness Probe via patch\noc patch vm backend-vm -n backend-prod --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/livenessProbe\", \"value\": {\"tcpSocket\": {\"port\": 5432}, \"initialDelaySeconds\": 90, \"failureThreshold\": 5}}}]'\n\n# 2. Verify\n# oc get vm backend-vm -n backend-prod -o yaml\n",
       "sections": [
         {
           "title": "Liveness Probe",
           "notice": "Ensure the 'backend-vm' restarts if PostgreSQL fails.",
           "subtasks": [
-            "Add a liveness probe to the 'backend-vm' that performs a TCP socket check on port 5432."
+            "Add a liveness probe to the 'backend-vm'.",
+            "The probe should perform a TCP socket check on port 5432.",
+            "Set an initial delay of 90 seconds.",
+            "Set a failure threshold of 5."
           ]
         }
       ]
@@ -182,14 +211,16 @@
     {
       "id": "task13",
       "title": "Install a Custom Package on the Frontend VM",
+      "solution": "# This task is performed inside the VM.\n# 1. Access the VM\noc console frontend-vm -n frontend-prod\n\n# 2. Create repo file\nsudo -i\necho -e \"[monitoring]\\nname=Monitoring Agent Repo\\nbaseurl=http://repo.example.com/monitoring_agents\\nenabled=1\\ngpgcheck=0\" > /etc/yum.repos.d/monitoring.repo\n\n# 3. Install package\ndnf install -y grafana-agent\n\n# 4. Enable and start service\nsystemctl enable --now grafana-agent\n",
       "sections": [
         {
           "title": "System Administration",
-          "notice": "Install a monitoring agent on the 'frontend-vm'. To do this, first configure a custom repository inside the VM. Create the file '/etc/yum.repos.d/monitoring.repo' with the content: [monitoring]\nname=Monitoring Agent Repo\nbaseurl=http://repo.example.com/monitoring_agents\nenabled=1\ngpgcheck=0. Perform actions in the 'frontend-prod' namespace.",
+          "notice": "Install a monitoring agent from a custom repository on the 'frontend-vm' in the 'frontend-prod' namespace. Repo details: URL: http://repo.example.com/monitoring_agents, File: /etc/yum.repos.d/monitoring.repo, Content: [monitoring]...",
           "subtasks": [
             "Log into the 'frontend-vm'.",
-            "Install the 'corp-monitoring-agent' package using the provided repository details.",
-            "Enable and start the 'corp-monitoring-agent' service."
+            "Configure the custom repository as specified.",
+            "Install the 'grafana-agent' package.",
+            "Enable and start the 'grafana-agent' service."
           ]
         }
       ]

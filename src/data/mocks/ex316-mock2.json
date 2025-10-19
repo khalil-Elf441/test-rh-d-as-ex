@@ -1,12 +1,13 @@
 {
   "examId": "ex316-2",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 2: Full Spectrum Exam II",
-  "description": "A comprehensive 13-task exam covering a wide range of objectives including migration, high availability, and advanced networking.",
-  "timeLimit": "4 hours",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 2: Final Version",
+  "description": "A comprehensive exam focusing on migration, high availability, and advanced networking.",
+  "prerequisites": "# This script should be run once before starting the exam.\n\necho \"Creating prerequisite resources for Mock 2...\"\n\n# This mock requires the Migration Toolkit for Virtualization Operator.\n# It also assumes a mock vSphere environment is reachable, which we simulate via placeholders.\n\necho \"Prerequisite setup complete.\"\n",
   "tasks": [
     {
       "id": "task01",
       "title": "Migrate a VM from VMware vSphere",
+      "solution": "# 1. Create Namespace\noc create namespace erp-prod\n\n# 2. Install Operator\n# This is done via OperatorHub in the UI. Find 'Migration Toolkit for Virtualization' and install.\n\n# 3. Create Provider Secret and CR\noc create secret generic vsphere-secret --from-literal=user=vsphere-user --from-literal=password=vsphere-pass --from-literal=url=https://vcenter.example.com/sdk -n erp-prod\n\noc create -f - -n erp-prod <<EOF\napiVersion: forklift.konveyor.io/v1beta1\nkind: Provider\nmetadata:\n  name: vsphere-provider\nspec:\n  type: vsphere\n  url: https://vcenter.example.com/sdk\n  secret:\n    name: vsphere-secret\n    namespace: erp-prod\nEOF\n\n# 4. Create Plan and execute (details depend on mock provider, this is a simplified representation)\noc create -f - -n erp-prod <<EOF\napiVersion: forklift.konveyor.io/v1beta1\nkind: Plan\nmetadata:\n  name: erp-migration-plan\nspec:\n  provider:\n    source:\n      name: vsphere-provider\n    destination:\n      name: host\n  map:\n    network:\n      - source:\n          name: \"VM Network\"\n        destination:\n          name: pod\n    storage:\n      - source:\n          name: \"datastore1\"\n        destination:\n          storageClass: <default-storage-class>\n  vms:\n  - name: legacy-erp\nEOF\n\noc create -f - -n erp-prod <<EOF\napiVersion: forklift.konveyor.io/v1beta1\nkind: Migration\nmetadata:\n  name: erp-migration\nspec:\n  plan:\n    name: erp-migration-plan\nEOF\n",
       "sections": [
         {
           "title": "Migration Toolkit and Execution",
@@ -15,7 +16,7 @@
             "Create a new namespace named 'erp-prod'.",
             "Install the 'Migration Toolkit for Virtualization' Operator.",
             "Configure a 'Provider' resource to connect to the mock vSphere environment.",
-            "Create a 'Plan' to migrate the 'legacy-erp' VM, mapping source networks and datastores to OpenShift targets.",
+            "Create a 'Plan' to migrate the 'legacy-erp' VM, mapping source networks and datastores.",
             "Execute the migration and verify the new VM is running in the 'erp-prod' namespace."
           ]
         }
@@ -24,14 +25,16 @@
     {
       "id": "task02",
       "title": "Configure High Availability for the Migrated VM",
+      "solution": "# 1. Set Eviction Strategy\noc patch vm legacy-erp -n erp-prod --type merge -p '{\"spec\":{\"template\":{\"spec\":{\"evictionStrategy\":\"LiveMigrateIfPossible\"}}}}'\n\n# 2. Add Liveness Probe\noc patch vm legacy-erp -n erp-prod --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/livenessProbe\", \"value\": {\"tcpSocket\": {\"port\": 8080}, \"initialDelaySeconds\": 120}}}]'\n\n# 3. Add Watchdog\noc patch vm legacy-erp -n erp-prod --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/watchdog\", \"value\": {\"name\": \"mywatchdog\", \"i6300esb\": {\"action\": \"reset\"}}}]'\n\n# 4. Verify\noc get vm legacy-erp -n erp-prod -o yaml\n",
       "sections": [
         {
           "title": "Eviction Strategy and Health Probes",
           "notice": "Ensure the 'legacy-erp' VM is resilient to node failures. Perform actions in the 'erp-prod' namespace.",
           "subtasks": [
-            "Edit the 'legacy-erp' VM and set its 'evictionStrategy' to 'LiveMigrateIfPossible'.",
+            "Set the 'evictionStrategy' of the 'legacy-erp' VM to 'LiveMigrateIfPossible'.",
             "Add a liveness probe that performs a TCP socket check on port 8080.",
-            "Add a watchdog device to the VM using the 'i6300esb' model."
+            "Add a watchdog device to the VM using the 'i6300esb' model.",
+            "Verify the settings have been applied to the VirtualMachineInstance."
           ]
         }
       ]
@@ -39,9 +42,10 @@
     {
       "id": "task03",
       "title": "Expose the Migrated VM and Configure RBAC",
+      "solution": "# 1. Expose Service\noc expose vm legacy-erp --name=legacy-webapp-svc --type=NodePort --port=8080 --target-port=8080 -n erp-prod\n\n# 2. Create User\noc create user erp-support\n\n# 3. Create Role\noc create role namespace-viewer --verb=get,list,watch --resource=* -n erp-prod\n\n# 4. Bind Role\noc create rolebinding erp-support-binding --role=namespace-viewer --user=erp-support -n erp-prod",
       "sections": [
         {
-          "title": "Service, Route, and User Management",
+          "title": "Service and User Management",
           "notice": "Expose the ERP application and create a user with limited permissions. Perform actions in the 'erp-prod' namespace.",
           "subtasks": [
             "Create a NodePort service to expose port 8080 of the 'legacy-erp' VM.",
@@ -55,6 +59,7 @@
     {
       "id": "task04",
       "title": "Deploy a Highly Available Database Cluster",
+      "solution": "# 1. Create Namespace\noc create namespace shared-db\n\n# 2. Create VMs with Anti-Affinity\noc create -f - -n shared-db <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: db-node1\n  labels:\n    app: db-cluster\nspec:\n  template:\n    metadata:\n      labels:\n        app: db-cluster\n    spec:\n      affinity:\n        podAntiAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n          - labelSelector:\n              matchExpressions:\n              - key: app\n                operator: In\n                values:\n                - db-cluster\n            topologyKey: kubernetes.io/hostname\n      domain: {}\n      volumes: []\n---\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: db-node2\n  labels:\n    app: db-cluster\nspec:\n  template:\n    metadata:\n      labels:\n        app: db-cluster\n    spec:\n      affinity:\n        podAntiAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n          - labelSelector:\n              matchExpressions:\n              - key: app\n                operator: In\n                values:\n                - db-cluster\n            topologyKey: kubernetes.io/hostname\n      domain: {}\n      volumes: []\nEOF\n\n# 3. Verify\noc get pods -n shared-db -o wide\n",
       "sections": [
         {
           "title": "VM Deployment and Anti-Affinity",
@@ -62,7 +67,8 @@
           "subtasks": [
             "Create a new namespace named 'shared-db'.",
             "Deploy two VMs, 'db-node1' and 'db-node2', with the label 'app=db-cluster'.",
-            "Add a required 'podAntiAffinity' rule to both VMs to prevent them from being scheduled on the same node."
+            "Add a required 'podAntiAffinity' rule to both VMs to prevent them from being scheduled on the same node.",
+            "Verify the two VMs are running on different worker nodes."
           ]
         }
       ]
@@ -70,6 +76,7 @@
     {
       "id": "task05",
       "title": "Configure Shared and Local Storage for the Database Cluster",
+      "solution": "# 1. Create RWX PVC (Requires a StorageClass that supports RWX, like ocs-storagecluster-cephfs)\noc create -f - -n shared-db <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: db-shared-vol\nspec:\n  accessModes:\n  - ReadWriteMany\n  resources:\n    requests:\n      storage: 10Gi\n  storageClassName: <rwx-storage-class-name>\nEOF\n\n# 2. Create RWO PVCs\noc create -f - -n shared-db <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: db-node1-local\nspec:\n  accessModes: [ReadWriteOnce]\n  resources:\n    requests:\n      storage: 15Gi\n---\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: db-node2-local\nspec:\n  accessModes: [ReadWriteOnce]\n  resources:\n    requests:\n      storage: 15Gi\nEOF\n\n# 3. Attach volumes to VMs\noc virt addvolume db-node1 --volume-name=shared-vol --claim-name=db-shared-vol -n shared-db\noc virt addvolume db-node1 --volume-name=local-vol --claim-name=db-node1-local -n shared-db\n\noc virt addvolume db-node2 --volume-name=shared-vol --claim-name=db-shared-vol -n shared-db\noc virt addvolume db-node2 --volume-name=local-vol --claim-name=db-node2-local -n shared-db\n",
       "sections": [
         {
           "title": "Multi-Tier Storage Configuration",
@@ -77,7 +84,8 @@
           "subtasks": [
             "Create a 10Gi PVC named 'db-shared-vol' with 'ReadWriteMany' access mode.",
             "Attach this shared PVC to both 'db-node1' and 'db-node2'.",
-            "For each VM, also create and attach a dedicated 15Gi 'ReadWriteOnce' PVC for local data."
+            "For each VM, also create and attach a dedicated 15Gi 'ReadWriteOnce' PVC for local data.",
+            "Verify all disks are attached and visible within the guest operating systems."
           ]
         }
       ]
@@ -85,13 +93,16 @@
     {
       "id": "task06",
       "title": "Create a Custom Template with Cloud-Init",
+      "solution": "# 1. Generate Template from VM\n# This is best done via the Web Console: Administrator -> Virtualization -> Templates -> Create Template from VM.\n# Or by creating a manifest manually:\noc create -f - -n shared-db <<EOF\napiVersion: template.openshift.io/v1\nkind: Template\nmetadata:\n  name: db-node-template\nobjects:\n- apiVersion: kubevirt.io/v1\n  kind: VirtualMachine\n  metadata:\n    name: \"${NAME}\"\n  spec:\n    dataVolumeTemplates:\n    - apiVersion: cdi.kubevirt.io/v1beta1\n      kind: DataVolume\n      metadata:\n        name: \"${NAME}-root\"\n      spec:\n        source:\n          pvc:\n            name: <pvc-name-of-db-node1-root-disk>\n            namespace: shared-db\n    template:\n      spec:\n        domain: {}\n        volumes:\n        - name: cloudinitdisk\n          cloudInitNoCloud:\n            userData: |\n              #cloud-config\n              ssh_authorized_keys:\n                - ssh-rsa AAAA...\nparameters:\n- name: NAME\n  description: Name of the new VM\n  required: true\nEOF\n\n# 2. Deploy test VM\noc new-app --template=db-node-template --param=NAME=db-test -n shared-db\n",
       "sections": [
         {
           "title": "Database Node Template",
           "notice": "Create a template from 'db-node1' for future database deployments. Perform actions in the 'shared-db' namespace.",
           "subtasks": [
             "Generate a template named 'db-node-template' from the 'db-node1' VM.",
-            "Modify the template to use cloud-init to set a custom SSH key for the 'cloud-user'."
+            "Modify the template to use cloud-init to set a custom SSH key for the 'cloud-user'.",
+            "Add a parameter to the template for the VM name.",
+            "Deploy a test VM from the template to verify it works."
           ]
         }
       ]
@@ -99,6 +110,7 @@
     {
       "id": "task07",
       "title": "Perform a Snapshot and Restore of a Database Node",
+      "solution": "# 1. Create Snapshot\noc create -f - -n shared-db <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineSnapshot\nmetadata:\n  name: db-node2-snap\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: db-node2\nEOF\n\n# 2. Wait for snapshot to be ready\noc wait --for=condition=Ready vmsnapshot/db-node2-snap -n shared-db --timeout=300s\n\n# 3. Delete VM\noc delete vm db-node2 -n shared-db\n\n# 4. Restore VM\noc create -f - -n shared-db <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineRestore\nmetadata:\n  name: db-node2-restore\nspec:\n  target:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: db-node2\n  virtualMachineSnapshotName: db-node2-snap\nEOF\n",
       "sections": [
         {
           "title": "Backup and Recovery Drill",
@@ -106,7 +118,8 @@
           "subtasks": [
             "Create a snapshot of the 'db-node2' VM.",
             "Delete the VM after the snapshot is complete.",
-            "Restore the VM from the snapshot."
+            "Restore the VM from the snapshot.",
+            "Verify the restored VM is functional."
           ]
         }
       ]
@@ -114,6 +127,7 @@
     {
       "id": "task08",
       "title": "Clone the ERP VM for testing",
+      "solution": "# 1. Create Namespace\noc create namespace erp-uat\n\n# 2. Create Clone CR with target namespace\noc create -f - -n erp-prod <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineClone\nmetadata:\n  name: erp-uat-clone\nspec:\n  source:\\n    kind: VirtualMachine\\n    name: legacy-erp\\n  target:\\n    name: erp-uat-clone\\n    namespace: erp-uat\\nEOF\n\n# 3. Verify\noc get vm erp-uat-clone -n erp-uat\n",
       "sections": [
         {
           "title": "Cloning for UAT",
@@ -121,7 +135,8 @@
           "subtasks": [
             "Create a new namespace named 'erp-uat'.",
             "Clone the 'legacy-erp' VM from the 'erp-prod' namespace into the 'erp-uat' namespace.",
-            "Name the new VM 'erp-uat-clone'."
+            "Name the new VM 'erp-uat-clone'.",
+            "Verify the clone starts and is functional."
           ]
         }
       ]
@@ -129,6 +144,7 @@
     {
       "id": "task09",
       "title": "Configure a Multi-Homed Analytics VM",
+      "solution": "# 1. Create Namespace\noc create namespace analytics\n\n# 2. Create bridge with NMState Operator\noc create -f - <<EOF\napiVersion: nmstate.io/v1\nkind: NodeNetworkConfigurationPolicy\nmetadata:\n  name: br-analytics-policy\nspec:\n  nodeSelector:\n    node-role.kubernetes.io/worker: \"\"\n  desiredState:\n    interfaces:\n    - name: br-analytics\n      type: linux-bridge\n      state: up\n      ipv4:\n        enabled: false\nEOF\n\n# 3. Create NAD\noc create -f - -n analytics <<EOF\napiVersion: \"k8s.cni.cncf.io/v1\"\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: analytics-net\nspec:\n  config: |\n    {\"cniVersion\": \"0.3.1\", \"name\": \"analytics-net\", \"type\": \"cnv-bridge\", \"bridge\": \"br-analytics\"}\nEOF\n\n# 4. Deploy VM\n# (Abridged VM manifest)\noc create -f - -n analytics <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: analytics-vm\nspec:\n  template:\n    spec:\n      networks:\n      - name: default\n        pod: {}\n      - name: analytics-net\n        multus:\n          networkName: analytics-net\n      domain:\n        devices:\n          interfaces:\n          - name: default\n            masquerade: {}\n          - name: analytics-net\n            bridge: {}\nEOF\n",
       "sections": [
         {
           "title": "Multus and NMState Configuration",
@@ -145,13 +161,16 @@
     {
       "id": "task10",
       "title": "Perform Node Maintenance on an Analytics Node",
+      "solution": "# 1. Identify node\nNODE_NAME=$(oc get pod -n analytics -l kubevirt.io/domain=analytics-vm -o jsonpath='{.items[0].spec.nodeName}')\n\n# 2. Set eviction strategy\noc patch vm analytics-vm -n analytics --type merge -p '{\"spec\":{\"template\":{\"spec\":{\"evictionStrategy\":\"LiveMigrate\"}}}}'\n\n# 3. Drain node\noc adm drain $NODE_NAME --ignore-daemonsets --delete-local-data\n\n# 4. Uncordon node\noc adm uncordon $NODE_NAME\n",
       "sections": [
         {
           "title": "Node Drain",
           "notice": "The node hosting 'analytics-vm' must be drained for maintenance.",
           "subtasks": [
             "Identify the node where 'analytics-vm' is running.",
-            "Drain the node, ensuring the VM is live-migrated without downtime."
+            "Set the VM's eviction strategy to allow live migration.",
+            "Drain the node, ensuring the VM is live-migrated without downtime.",
+            "After the node is drained, mark it as schedulable again."
           ]
         }
       ]
@@ -159,13 +178,16 @@
     {
       "id": "task11",
       "title": "Import an OVA Image",
+      "solution": "# 1. Create DataVolume from OVA\noc create -f - -n analytics <<EOF\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: appliance-dv\nspec:\n  source:\n    http:\n      url: http://vendor.com/appliance.ova\n  pvc:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 20Gi\nEOF\n\n# Note: The OVA import process should automatically create a VM. \n# If not, you would create a VM manifest that references the PVC created by this DataVolume.\n\n# 2. Verify\noc get vm -n analytics # Look for a VM created from the OVA\n",
       "sections": [
         {
           "title": "Importing a Vendor Appliance",
           "notice": "Import a vendor appliance from 'http://vendor.com/appliance.ova' into the 'analytics' namespace.",
           "subtasks": [
             "Create a DataVolume in the 'analytics' namespace configured to import from the OVA URL.",
-            "Verify the associated VM is created automatically."
+            "Verify the associated VM is created automatically.",
+            "Start the imported VM.",
+            "Access the VM's console to complete any first-boot setup."
           ]
         }
       ]
@@ -173,6 +195,7 @@
     {
       "id": "task12",
       "title": "Detach a Disk from the Analytics VM",
+      "solution": "# 1. Add Volume\noc virt addvolume analytics-vm --volume-name=temp-data --claim-size=2Gi -n analytics\n\n# 2. Stop VM\noc virt stop analytics-vm -n analytics\n\n# 3. Wait for VM to stop\noc wait --for=condition=Ready=false vm/analytics-vm -n analytics --timeout=120s\n\n# 4. Remove Volume\noc virt removevolume analytics-vm --volume-name=temp-data -n analytics\n\n# 5. Start VM\noc virt start analytics-vm -n analytics\n",
       "sections": [
         {
           "title": "Storage Management",
@@ -181,7 +204,7 @@
             "Add a new 2Gi data volume to 'analytics-vm' named 'temp-data'.",
             "Shut down the VM.",
             "Remove the 'temp-data' volume from the VM definition.",
-            "Start the VM."
+            "Start the VM and verify the disk is no longer present."
           ]
         }
       ]
@@ -189,13 +212,16 @@
     {
       "id": "task13",
       "title": "Install a custom package on the Analytics VM",
+      "solution": "# This task is performed inside the VM.\n# 1. Access the VM\noc console analytics-vm -n analytics\n\n# 2. Create repo file\nsudo -i\necho -e \"[datascience]\\nname=Data Science Repo\\nbaseurl=http://repo.example.com/datascience\\nenabled=1\\ngpgcheck=0\" > /etc/yum.repos.d/datascience.repo\n\n# 3. Install package\ndnf install -y python3-pandas\n\n# 4. Verify\nrpm -q python3-pandas\n",
       "sections": [
         {
           "title": "Basic System Administration",
-          "notice": "Install a custom analytics package on the 'analytics-vm'. To do this, first configure a custom repository inside the VM. Create the file '/etc/yum.repos.d/analytics.repo' with the following content: [analytics]\nname=Analytics Repo\nbaseurl=http://repo.example.com/analytics_packages\nenabled=1\ngpgcheck=0. Perform actions in the 'analytics' namespace.",
+          "notice": "Install a data science toolkit on the 'analytics-vm'. Repo details: URL: http://repo.example.com/datascience, File: /etc/yum.repos.d/datascience.repo, Content: [datascience]...",
           "subtasks": [
             "Log into the 'analytics-vm'.",
-            "Install the 'custom-analytics-tool' package using the provided repository details."
+            "Configure the custom repository as specified.",
+            "Install the 'python3-pandas' package.",
+            "Verify the package installation was successful."
           ]
         }
       ]
