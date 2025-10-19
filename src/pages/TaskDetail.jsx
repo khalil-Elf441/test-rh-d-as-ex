@@ -1,38 +1,15 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import SubtaskCheckbox from '../components/SubtaskCheckbox';
-import examData from '../data/mocks/ex316-mock1.json';
 import NotFound from './NotFound';
-
-// Re-using the localStorage hook from TasksPage
-const useLocalStorage = (key, initialValue) => {
-  const [storedValue, setStoredValue] = useState(() => {
-    try {
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(error);
-      return initialValue;
-    }
-  });
-
-  const setValue = (value) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  return [storedValue, setValue];
-};
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import { examDataMap } from '../data/examData';
 
 const TaskDetail = () => {
   const { examId, taskId } = useParams();
-  const task = examData.tasks.find((t) => t.id === taskId);
+  const currentExam = examDataMap[examId];
+  const task = currentExam?.tasks.find((t) => t.id === taskId);
 
   const [checkedSubtasks, setCheckedSubtasks] = useLocalStorage(
     `checkedSubtasks_${examId}_${taskId}`,
@@ -52,13 +29,13 @@ const TaskDetail = () => {
   };
 
   return (
-    <div className="card">
+    <div>
       <Link to={`/tasks/${examId}`} className="back-link">
         &larr; Back to Task List
       </Link>
 
       <div className="task-detail-header">
-        <h1 className="task-detail-title">{task.title}</h1>
+        <h1>{task.title}</h1>
       </div>
 
       {task.sections.map((section, sectionIndex) => (

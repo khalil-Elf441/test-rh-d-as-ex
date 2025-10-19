@@ -7,29 +7,27 @@ const TaskRadio = ({ examId, taskId, status, onStatusChange }) => {
   };
 
   return (
-    <div className="task-radio">
-      <div>
+    <div className="task-radio-simple">
+      <label>
         <input
           type="radio"
-          id={`revise-${examId}-${taskId}`}
           name={`status-${examId}-${taskId}`}
           value="revise"
           checked={status === 'revise'}
           onChange={handleChange}
         />
-        <label htmlFor={`revise-${examId}-${taskId}`}>Revise</label>
-      </div>
-      <div>
+        Revise
+      </label>
+      <label>
         <input
           type="radio"
-          id={`done-${examId}-${taskId}`}
           name={`status-${examId}-${taskId}`}
           value="done"
           checked={status === 'done'}
           onChange={handleChange}
         />
-        <label htmlFor={`done-${examId}-${taskId}`}>Done</label>
-      </div>
+        Done
+      </label>
     </div>
   );
 };
