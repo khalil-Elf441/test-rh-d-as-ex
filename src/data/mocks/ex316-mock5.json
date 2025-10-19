@@ -1,0 +1,251 @@
+
+{
+  "examId": "ex316-5",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 5",
+  "description": "A comprehensive review of all major domains, with a focus on integration and automation.",
+  "timeLimit": "4 hours",
+  "tasks": [
+    {
+      "id": "task01",
+      "title": "Automate VM deployment using a GitOps workflow",
+      "sections": [
+        {
+          "title": "ArgoCD/GitOps Setup",
+          "notice": "Configure OpenShift GitOps (ArgoCD) to manage virtual machine definitions from a Git repository.",
+          "subtasks": [
+            "Install the OpenShift GitOps Operator.",
+            "Create a Git repository containing a YAML definition for a VirtualMachine.",
+            "Create an ArgoCD 'Application' that points to your Git repository.",
+            "Verify that ArgoCD automatically deploys the VM into the cluster."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task02",
+      "title": "Change the CPU model of a running VM",
+      "sections": [
+        {
+          "title": "CPU Feature Update",
+          "notice": "Update a VM's CPU model to 'host-passthrough' to expose all host CPU features.",
+          "subtasks": [
+            "Stop the target virtual machine.",
+            "Edit the VirtualMachine object and set the 'cpu.model' to 'host-passthrough'.",
+            "Start the virtual machine.",
+            "Log into the guest OS and verify that more advanced CPU flags are now visible."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task03",
+      "title": "Connect a VM to a software-defined network (OVN-Kubernetes)",
+      "sections": [
+        {
+          "title": "OVN Integration",
+          "notice": "Create a secondary network for VMs that is managed by OVN-Kubernetes.",
+          "subtasks": [
+            "Create a 'NetworkAttachmentDefinition' that uses the 'ovn-k8s-cni-overlay' CNI type.",
+            "Deploy a new VM and attach it to this OVN-based network.",
+            "Verify the VM gets an IP address from the OVN-managed subnet."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task04",
+      "title": "Backup all VMs in a specific namespace using OADP label selectors",
+      "sections": [
+        {
+          "title": "Bulk Backup",
+          "notice": "Create a single backup job that captures all VMs in the 'production' namespace.",
+          "subtasks": [
+            "Ensure all VMs in the 'production' namespace have a common label, e.g., 'environment: prod'.",
+            "Create a 'Backup' custom resource.",
+            "Instead of listing resources, use a 'labelSelector' to target 'environment: prod'.",
+            "Verify the backup completes and includes all expected VMs."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task05",
+      "title": "Create a golden template from a running VM",
+      "sections": [
+        {
+          "title": "Template Creation from Live VM",
+          "notice": "Create a template from a live, running VM without shutting it down.",
+          "subtasks": [
+            "Ensure the source VM has a snapshot-capable storage class.",
+            "Use the 'oc process' command on the default templates to generate a new template YAML.",
+            "Modify the YAML to use the running VM's PVC as the source for the template's boot disk.",
+            "Create the new template and deploy a test VM from it."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task06",
+      "title": "Perform a mass live migration of all VMs from a node",
+      "sections": [
+        {
+          "title": "Node Evacuation",
+          "notice": "A node is showing hardware errors. Evacuate all VMs from it immediately.",
+          "subtasks": [
+            "Use the 'oc virt drain' command on the target node.",
+            "Monitor the VMI objects to ensure they all start migrating.",
+            "Once all VMs are migrated, place the node into maintenance mode."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task07",
+      "title": "Clone a VM and change its network configuration in a single step",
+      "sections": [
+        {
+          "title": "Clone and Reconfigure",
+          "notice": "Clone a production VM to a staging environment, but attach it to a different network.",
+          "subtasks": [
+            "Create a 'VirtualMachineClone' custom resource.",
+            "Specify the source VM and the new VM name.",
+            "Use the 'networkPatches' field to modify the network interface configuration for the clone.",
+            "Verify the cloned VM starts with the new network settings."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task08",
+      "title": "Configure a VM to have a dedicated CPU core",
+      "sections": [
+        {
+          "title": "CPU Pinning",
+          "notice": "A real-time application VM requires exclusive access to a CPU core.",
+          "subtasks": [
+            "Enable the CPU manager on the cluster nodes.",
+            "Edit the VirtualMachine object.",
+            "Set the 'dedicatedCpuPlacement' field to 'true'.",
+            "Request a specific number of CPUs (e.g., 1).",
+            "Verify the VMI pod has the 'Guaranteed' QoS class and is pinned to a specific core."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task09",
+      "title": "Restore a VM to a different StorageClass",
+      "sections": [
+        {
+          "title": "Storage Tier Migration via Restore",
+          "notice": "Move a VM from slow HDD storage to fast SSD storage by restoring it.",
+          "subtasks": [
+            "Take a backup of the VM using OADP.",
+            "Create a 'Restore' custom resource.",
+            "In the restore spec, add a 'storageClassMapping' field.",
+            "Map the source StorageClass to the new, faster StorageClass.",
+            "Verify the restored VM is running on volumes from the new StorageClass."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task10",
+      "title": "Attach a secret to a VM as a virtual floppy drive",
+      "sections": [
+        {
+          "title": "Secure Data Injection",
+          "notice": "Pass a license key to a VM securely without storing it on the main disk.",
+          "subtasks": [
+            "Create a Kubernetes Secret containing the license key.",
+            "Edit the VirtualMachine object.",
+            "Add a new volume that references the secret.",
+            "Add a 'floppy' disk to the VM and attach the secret volume to it.",
+            "Boot the VM and verify the floppy drive is present with the secret data."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Configure a VM to automatically restart on failure",
+      "sections": [
+        {
+          "title": "Restart Policy",
+          "notice": "Ensure a critical VM is always running, even if the guest OS crashes.",
+          "subtasks": [
+            "Edit the VirtualMachine object.",
+            "Set the 'running' field to 'true'.",
+            "Set the 'runStrategy' to 'Always'.",
+            "Test the configuration by manually killing the 'qemu' process inside the virt-launcher pod and watch the VM restart."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Expose a set of VMs using a Headless Service",
+      "sections": [
+        {
+          "title": "StatefulSet-like Networking",
+          "notice": "Provide stable, unique network identifiers for a cluster of database VMs.",
+          "subtasks": [
+            "Ensure all database VMs share a common label.",
+            "Create a new Service.",
+            "Set the 'clusterIP' to 'None' to make it headless.",
+            "Use a selector to target the database VMs.",
+            "Verify that DNS lookups for the service return the individual IP addresses of each VM."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task13",
+      "title": "Enable and use hugepages for a high-performance VM",
+      "sections": [
+        {
+          "title": "Memory Optimization",
+          "notice": "Improve the performance of a database VM by using hugepages.",
+          "subtasks": [
+            "Configure the OpenShift nodes to allocate a number of hugepages.",
+            "Edit the VirtualMachine object.",
+            "In the 'domain.memory' section, specify a 'hugepages' size (e.g., 2Mi).",
+            "Start the VM and verify it is using hugepages from the node."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task14",
+      "title": "Create a DataVolume from a PVC that already exists",
+      "sections": [
+        {
+          "title": "Adopting Existing Volumes",
+          "notice": "An existing PVC contains a disk image. Create a VM that uses it.",
+          "subtasks": [
+            "Create a new DataVolume resource.",
+            "In the spec, use the 'source' field and specify the 'pvc' source type.",
+            "Provide the name and namespace of the existing PVC.",
+            "Create a VM that uses this DataVolume as its disk."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task15",
+      "title": "Troubleshoot a VM with a 'CrashLoopBackOff' status",
+      "sections": [
+        {
+          "title": "Pod-Level Debugging",
+          "notice": "The virt-launcher pod for a VM is crashing repeatedly. Find out why.",
+          "subtasks": [
+            "Use 'oc get pods' to find the crashing virt-launcher pod.",
+            "Use 'oc logs --previous' to view the logs from the last failed container instance.",
+            "Examine the logs for errors related to permissions, missing resources, or invalid configuration.",
+            "Describe the pod and look for events that indicate why it is failing to schedule or start."
+          ]
+        }
+      ]
+    }
+  ]
+}

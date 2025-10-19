@@ -1,0 +1,258 @@
+
+{
+  "examId": "ex316-6",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 6",
+  "description": "Final challenge focusing on complex networking, multi-node configurations, and failure recovery.",
+  "timeLimit": "4 hours",
+  "tasks": [
+    {
+      "id": "task01",
+      "title": "Configure SR-IOV networking for a VM",
+      "sections": [
+        {
+          "title": "SR-IOV Operator Setup",
+          "notice": "Enable and configure the SR-IOV Network Operator to expose physical functions (PFs) to VMs.",
+          "subtasks": [
+            "Install the SR-IOV Network Operator.",
+            "Create an 'SriovNetworkNodePolicy' to configure a specific PF on your worker nodes.",
+            "Wait for the operator to create the corresponding Virtual Functions (VFs).",
+            "Create an 'SriovNetwork' custom resource to make the VFs available as a network attachment."
+          ]
+        },
+        {
+          "title": "VM Attachment",
+          "notice": "Attach a VM to an SR-IOV virtual function for high-performance networking.",
+          "subtasks": [
+            "Create a NetworkAttachmentDefinition for the SR-IOV network.",
+            "Deploy a new VM and add a network interface that references the SR-IOV NAD.",
+            "Verify inside the guest OS that a new network interface with high throughput is available."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task02",
+      "title": "Restore a backup to a different namespace",
+      "sections": [
+        {
+          "title": "Cross-Namespace Restore",
+          "notice": "Restore a backup of a production VM into a testing namespace.",
+          "subtasks": [
+            "Take a backup of a VM in the 'default' namespace.",
+            "Create a 'Restore' custom resource.",
+            "In the restore spec, use the 'namespaceMapping' field to map the source namespace to the target 'testing' namespace.",
+            "Verify the restored VM appears in the 'testing' namespace."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task03",
+      "title": "Create a template that deploys a VM with multiple network interfaces",
+      "sections": [
+        {
+          "title": "Multi-NIC Template",
+          "notice": "Create a template for a firewall VM that requires a public, private, and management interface.",
+          "subtasks": [
+            "Create three different NetworkAttachmentDefinitions for your networks.",
+            "Create a new VM template.",
+            "In the template's VM spec, define three network interfaces.",
+            "Define three corresponding networks, each referencing one of the NADs."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task04",
+      "title": "Perform a cold migration of a VM",
+      "sections": [
+        {
+          "title": "Offline Migration",
+          "notice": "A VM cannot be live migrated due to its configuration. Move it to another node while it is offline.",
+          "subtasks": [
+            "Stop the virtual machine.",
+            "Add a 'nodeSelector' to the VM object to target a different node.",
+            "Start the virtual machine.",
+            "Verify it starts successfully on the new node."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task05",
+      "title": "Configure a custom health probe that runs a script inside the VM",
+      "sections": [
+        {
+          "title": "Guest Agent Script Probe",
+          "notice": "Create a readiness probe that checks if a specific process is running inside the guest OS.",
+          "subtasks": [
+            "Ensure the QEMU guest agent is running on the VM.",
+            "Edit the VirtualMachine object and add a readiness probe.",
+            "Use the 'guestAgentPing' probe type.",
+            "This probe implicitly checks the health of the guest agent, which can be used as a proxy for guest health."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task06",
+      "title": "Clone a VM from a snapshot",
+      "sections": [
+        {
+          "title": "Offline Cloning",
+          "notice": "Create a new VM from a point-in-time snapshot of another VM.",
+          "subtasks": [
+            "Take a snapshot of the source VM.",
+            "Create a new DataVolume resource.",
+            "For the source, specify the 'snapshot' source type, providing the name of the VirtualMachineSnapshot.",
+            "Create a new VM that uses this DataVolume as its boot disk."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task07",
+      "title": "Handle a full node failure where VMs were running",
+      "sections": [
+        {
+          "title": "Disaster Recovery Simulation",
+          "notice": "A node has failed and is unrecoverable. Force the VMs that were on it to restart elsewhere.",
+          "subtasks": [
+            "Identify the VMs that were running on the failed node.",
+            "If using RWX storage, the VMs should restart automatically. If not, manual intervention is needed.",
+            "For RWO volumes, delete the stuck VMI objects to allow the VM controller to reschedule them.",
+            "The underlying PVCs will be detached and reattached on a new node."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task08",
+      "title": "Configure a VM with a trusted platform module (vTPM) device",
+      "sections": [
+        {
+          "title": "Virtual TPM",
+          "notice": "Add a vTPM to a VM to enable features like BitLocker or secure boot inside the guest.",
+          "subtasks": [
+            "Edit the VirtualMachine object.",
+            "In the 'domain.devices' section, add a 'tpm' device.",
+            "Start the VM and verify that a TPM device is visible to the guest operating system."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task09",
+      "title": "Balance a VM workload across the cluster",
+      "sections": [
+        {
+          "title": "Descheduler Configuration",
+          "notice": "Install and configure the descheduler to rebalance VMs that are unevenly packed onto nodes.",
+          "subtasks": [
+            "Install the Descheduler Operator.",
+            "Create a 'KubeDescheduler' custom resource.",
+            "Enable a profile like 'AffinityAndTaints' to trigger rebalancing.",
+            "Manually stack several VMs onto one node and watch the descheduler migrate them."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task10",
+      "title": "Access the serial console of a running VM",
+      "sections": [
+        {
+          "title": "Out-of-Band Access",
+          "notice": "The network of a VM is misconfigured. Access it via the serial console to fix it.",
+          "subtasks": [
+            "Use the 'oc virt console' command to connect to the VM.",
+            "Log in using the guest OS credentials.",
+            "Perform administrative tasks to fix the networking issue.",
+            "Disconnect from the console."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Upload a local disk image to a PVC for a new VM",
+      "sections": [
+        {
+          "title": "Image Upload",
+          "notice": "You have a custom qcow2 image on your local machine. Upload it to create a new VM.",
+          "subtasks": [
+            "Install the 'virtctl' client tool.",
+            "Create a blank PVC to hold the disk image.",
+            "Use the 'virtctl image-upload' command, specifying the PVC and the path to your local image file.",
+            "Create a VM that uses the populated PVC as its disk."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Configure a VM to have its MAC address pool managed by the cluster",
+      "sections": [
+        {
+          "title": "MAC Pool Management",
+          "notice": "Ensure that all automatically assigned MAC addresses for VMs come from a specific range.",
+          "subtasks": [
+            "Edit the 'HyperConverged' custom resource.",
+            "Add a 'macPool' configuration.",
+            "Specify a range of MAC addresses for the cluster to use.",
+            "Deploy a new VM and verify its MAC address is from the configured pool."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task13",
+      "title": "Create a VM from a container disk image",
+      "sections": [
+        {
+          "title": "ContainerDisk VMs",
+          "notice": "Deploy a VM whose root filesystem is stored inside a container image in the cluster registry.",
+          "subtasks": [
+            "Find a pre-built container disk image or create your own.",
+            "Create a new VirtualMachine object.",
+            "In the 'volumes' section, define a 'containerDisk' volume.",
+            "Specify the container image URL as the source.",
+            "Attach this volume to the VM as its root disk."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task14",
+      "title": "Add a custom SSH key to a VM at runtime",
+      "sections": [
+        {
+          "title": "Runtime SSH Key Injection",
+          "notice": "You need to grant a temporary admin access to a running VM.",
+          "subtasks": [
+            "Ensure the QEMU guest agent is running on the VM.",
+            "Create a secret containing the public SSH key.",
+            "Use the 'oc virt ssh' command with the '--local-ssh-key' flag pointing to your private key.",
+            "This will temporarily add your key to the VM for access."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task15",
+      "title": "Enable and configure disk I/O throttling on a VM",
+      "sections": [
+        {
+          "title": "IOPS Limiting",
+          "notice": "Prevent a low-priority VM from consuming too much storage bandwidth.",
+          "subtasks": [
+            "Edit the VirtualMachine object.",
+            "In the 'disk' definition for the target disk, add a 'io' section.",
+            "Set a value for 'iotps' (I/O operations per second).",
+            "Verify the setting is applied by running a benchmark inside the VM."
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,253 @@
+
+{
+  "examId": "ex316-2",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 2",
+  "description": "Focuses on advanced networking, storage, and virtual machine lifecycle management.",
+  "timeLimit": "4 hours",
+  "tasks": [
+    {
+      "id": "task01",
+      "title": "Deploy the OpenShift Virtualization Operator with a custom namespace",
+      "sections": [
+        {
+          "title": "Operator Installation",
+          "notice": "The Operator must be installed in a namespace named 'openshift-virtualization-infra'.",
+          "subtasks": [
+            "Create the 'openshift-virtualization-infra' namespace.",
+            "Create an OperatorGroup for the new namespace.",
+            "Subscribe to the OpenShift Virtualization Operator, ensuring it targets the new namespace."
+          ]
+        },
+        {
+          "title": "Deploy HyperConverged CR",
+          "notice": "Wait for the operator to be ready before creating the HyperConverged custom resource.",
+          "subtasks": [
+            "Create a basic HyperConverged object to activate the virtualization components.",
+            "Verify that all virtualization pods are running successfully in the target namespace."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task02",
+      "title": "Configure a secondary NAD for VLAN-based networking",
+      "sections": [
+        {
+          "title": "NetworkAttachmentDefinition Creation",
+          "notice": "Create a bridge NAD for VLAN 100.",
+          "subtasks": [
+            "Create a new NetworkAttachmentDefinition named 'vlan-100-net' in the 'default' namespace.",
+            "Configure the NAD to use the 'cnv-bridge' CNI plugin.",
+            "Specify 'br1' as the bridge name and '100' as the VLAN ID."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task03",
+      "title": "Attach a VM to the new VLAN network",
+      "sections": [
+        {
+          "title": "VM Network Interface Configuration",
+          "notice": "The VM 'web-server-1' needs to be connected to the VLAN 100 network.",
+          "subtasks": [
+            "Create a new VM named 'web-server-1' from the 'rhel9-generic' template.",
+            "Add a new network interface to the VM.",
+            "Configure the interface to use the 'vlan-100-net' NetworkAttachmentDefinition."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task04",
+      "title": "Expose a VM using a Kubernetes LoadBalancer Service",
+      "sections": [
+        {
+          "title": "Service Creation",
+          "notice": "The web server running on port 8080 inside 'web-server-1' must be accessible externally.",
+          "subtasks": [
+            "Create a new Service named 'web-service-lb'.",
+            "Set the service type to 'LoadBalancer'.",
+            "Use a selector that matches the 'kubevirt.io/domain: web-server-1' label.",
+            "Map the service port 80 to the VM's target port 8080."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task05",
+      "title": "Configure a HostPath-based PersistentVolume for a VM",
+      "sections": [
+        {
+          "title": "Storage Configuration",
+          "notice": "Provide persistent storage for a database VM using a directory on a specific node.",
+          "subtasks": [
+            "Create a directory '/mnt/db-data' on one of your worker nodes.",
+            "Create a PersistentVolume that uses the created HostPath.",
+            "Create a PersistentVolumeClaim named 'db-pvc' that binds to the HostPath PV.",
+            "Create a new VM and attach the 'db-pvc' as a data volume."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task06",
+      "title": "Backup a VM using OADP",
+      "sections": [
+        {
+          "title": "Backup Execution",
+          "notice": "Perform a full, consistent backup of the 'db-server' VM.",
+          "subtasks": [
+            "Ensure the OADP operator is configured with a valid backup location.",
+            "Create a 'Backup' custom resource named 'db-server-backup'.",
+            "Specify the namespace to include in the backup.",
+            "Set 'snapshotMoveData' to true to ensure data consistency.",
+            "Wait for the backup to complete and verify its phase is 'Completed'."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task07",
+      "title": "Restore a VM from an OADP backup",
+      "sections": [
+        {
+          "title": "Restore Execution",
+          "notice": "Delete the original VM and restore it from the 'db-server-backup'.",
+          "subtasks": [
+            "Delete the 'db-server' VM and its associated resources.",
+            "Create a 'Restore' custom resource to bring the VM back.",
+            "Reference the 'db-server-backup' as the source.",
+            "Verify that the VM is running and its data is intact after the restore."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task08",
+      "title": "Create a custom VM template with a pre-installed package",
+      "sections": [
+        {
+          "title": "Template Customization",
+          "notice": "Create a template for deploying web servers with Nginx already installed.",
+          "subtasks": [
+            "Deploy a temporary VM from the base RHEL9 template.",
+            "Inside the VM, install the 'nginx' package and enable the service.",
+            "Shut down the VM and prepare it for templating (e.g., run virt-sysprep).",
+            "Create a new 'Template' resource from this customized VM."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task09",
+      "title": "Perform an offline snapshot of a VM",
+      "sections": [
+        {
+          "title": "Snapshot Creation",
+          "notice": "Take a snapshot of the 'web-server-1' VM before a risky update.",
+          "subtasks": [
+            "Stop the 'web-server-1' virtual machine.",
+            "Create a 'VirtualMachineSnapshot' resource named 'web-server-snapshot-v1'.",
+            "Specify 'web-server-1' as the source VM.",
+            "Wait for the snapshot 'readyToUse' status to become true."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task10",
+      "title": "Revert a VM to a previous snapshot",
+      "sections": [
+        {
+          "title": "Snapshot Restore",
+          "notice": "An update failed. Revert the 'web-server-1' VM to its previous state.",
+          "subtasks": [
+            "Stop the 'web-server-1' virtual machine.",
+            "Create a 'VirtualMachineRestore' resource.",
+            "Specify 'web-server-1' as the target and 'web-server-snapshot-v1' as the snapshot source.",
+            "Start the VM and verify it has reverted to the old state."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Clone a running VM",
+      "sections": [
+        {
+          "title": "Cloning Operation",
+          "notice": "Create a copy of the 'db-server' for a staging environment without shutting it down.",
+          "subtasks": [
+            "Ensure a volume snapshot class is available.",
+            "Create a 'VirtualMachineClone' custom resource.",
+            "Specify 'db-server' as the source and 'db-server-staging' as the name of the new VM.",
+            "Verify the new VM is created and running."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Perform a live migration of a critical VM",
+      "sections": [
+        {
+          "title": "Live Migration",
+          "notice": "A node needs maintenance. Move the 'db-server' VM to another node without downtime.",
+          "subtasks": [
+            "Initiate a 'VirtualMachineInstanceMigration' for the 'db-server' VMI.",
+            "Monitor the migration status until it completes.",
+            "Verify the VMI is running on a different node than the original."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task13",
+      "title": "Safely drain a node running virtual machines",
+      "sections": [
+        {
+          "title": "Node Maintenance",
+          "notice": "Prepare a worker node for a reboot.",
+          "subtasks": [
+            "Set the 'kubevirt.io/schedulable' label on the target node to 'false'.",
+            "Use 'oc drain' with the appropriate flags to evict all VMs.",
+            "Verify that the VMs have successfully migrated to other nodes."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task14",
+      "title": "Configure Liveness and Readiness probes for a VM",
+      "sections": [
+        {
+          "title": "Health Probe Configuration",
+          "notice": "Ensure Kubernetes can automatically restart a VM if the application inside it crashes.",
+          "subtasks": [
+            "Edit the 'web-server-1' VirtualMachine object.",
+            "Add a 'livenessProbe' that performs a TCP socket check on port 8080.",
+            "Add a 'readinessProbe' that performs an HTTP GET request on path '/' on port 8080.",
+            "Verify the probes are active in the VirtualMachineInstance description."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task15",
+      "title": "Prepare a VM for node failure using affinity rules",
+      "sections": [
+        {
+          "title": "High Availability Configuration",
+          "notice": "Ensure two database VMs do not run on the same physical node.",
+          "subtasks": [
+            "Create two VMs: 'db-master' and 'db-replica'.",
+            "Edit the 'db-replica' VM configuration.",
+            "Add a pod anti-affinity rule.",
+            "Configure the rule to avoid scheduling on nodes where a pod with the label 'kubevirt.io/domain: db-master' is running."
+          ]
+        }
+      ]
+    }
+  ]
+}

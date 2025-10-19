@@ -1,0 +1,265 @@
+
+{
+  "examId": "ex316-4",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 4",
+  "description": "Covers node and cluster maintenance, advanced cloning, and troubleshooting.",
+  "timeLimit": "4 hours",
+  "tasks": [
+    {
+      "id": "task01",
+      "title": "Perform a major update of OpenShift while Virtualization is running",
+      "sections": [
+        {
+          "title": "Cluster Update Preparation",
+          "notice": "Ensure that the OpenShift Virtualization deployment can withstand a cluster upgrade.",
+          "subtasks": [
+            "Review the OpenShift Virtualization documentation for any pre-requisites for a cluster upgrade.",
+            "Ensure all VMs have live migration enabled and are not pinned to specific nodes.",
+            "Verify that there are enough available nodes in the cluster to handle drained VMs."
+          ]
+        },
+        {
+          "title": "Cluster Update Execution",
+          "notice": "Update the cluster from version 4.x to 4.y.",
+          "subtasks": [
+            "Initiate the OpenShift cluster upgrade through the admin console.",
+            "Monitor the upgrade process, paying attention to the worker nodes as they are drained and rebooted.",
+            "Verify that critical VMs live-migrate successfully and remain available during the update."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task02",
+      "title": "Restore a single VM disk from a snapshot",
+      "sections": [
+        {
+          "title": "Selective Disk Restore",
+          "notice": "A data disk on a VM was corrupted. Restore only that disk from a snapshot.",
+          "subtasks": [
+            "Take a new snapshot of the VM to ensure you have a recent backup.",
+            "Identify the name of the PVC corresponding to the corrupted data disk.",
+            "Use the 'oc virt snapshot-restore' command with flags to target only the specific PVC.",
+            "Verify the data on the restored disk is correct."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task03",
+      "title": "Create a VM using a raw image from an HTTP source",
+      "sections": [
+        {
+          "title": "DataVolume from Web",
+          "notice": "Deploy a VM using a Fedora image hosted on a public web server.",
+          "subtasks": [
+            "Create a new DataVolume custom resource.",
+            "In the spec, use the 'http' source type.",
+            "Provide the URL to a valid raw or qcow2 image.",
+            "Create a VM that uses this DataVolume as its root disk."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task04",
+      "title": "Configure a custom load balancer for a set of VMs using MetalLB",
+      "sections": [
+        {
+          "title": "MetalLB Configuration",
+          "notice": "If not installed, configure the MetalLB operator to provide LoadBalancer services.",
+          "subtasks": [
+            "Install the MetalLB Operator.",
+            "Create a MetalLB custom resource, defining an IP address pool for it to manage.",
+            "Create a BGP or L2 advertisement resource to announce the IPs."
+          ]
+        },
+        {
+          "title": "Service Exposure",
+          "notice": "Expose a cluster of three web VMs via a single external IP.",
+          "subtasks": [
+            "Ensure all three VMs share a common label.",
+            "Create a Service of type 'LoadBalancer'.",
+            "Use a selector to target the three web VMs.",
+            "Verify the service gets an external IP from the MetalLB pool and that traffic is balanced."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task05",
+      "title": "Enable and configure the hostpath provisioner",
+      "sections": [
+        {
+          "title": "Hostpath Provisioner Setup",
+          "notice": "Configure the hostpath provisioner to provide dynamic local storage.",
+          "subtasks": [
+            "Edit the HyperConverged custom resource.",
+            "Enable the 'hostpathProvisioner' feature gate.",
+            "Define a storage pool, specifying a path on the host to be used for volumes.",
+            "Verify that a new StorageClass for the hostpath provisioner is created."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task06",
+      "title": "Use the hostpath provisioner to deploy a VM",
+      "sections": [
+        {
+          "title": "Dynamic Local Storage",
+          "notice": "Deploy a VM that uses dynamically provisioned local storage.",
+          "subtasks": [
+            "Create a new PVC, specifying the hostpath provisioner's StorageClass.",
+            "Create a new VM that uses this PVC for its root disk.",
+            "Verify the VM runs and that its disk image is stored in the configured hostpath directory on a node."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task07",
+      "title": "Troubleshoot a VM that fails to live migrate",
+      "sections": [
+        {
+          "title": "Debugging Migration Failure",
+          "notice": "A VM is stuck in 'Migration Failed' state. Identify and fix the cause.",
+          "subtasks": [
+            "Examine the logs of the 'virt-handler' pods on the source and destination nodes.",
+            "Check the VMI description for events related to the migration failure.",
+            "Identify a common cause, such as a VM using a HostPath PV, which prevents migration.",
+            "Rectify the issue (e.g., change storage) and successfully re-run the migration."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task08",
+      "title": "Add a GPU from a host node to a VM",
+      "sections": [
+        {
+          "title": "GPU Passthrough",
+          "notice": "Provide a VM with direct access to a physical GPU for compute tasks.",
+          "subtasks": [
+            "Ensure the Node Feature Discovery (NFD) and GPU operators are installed.",
+            "Configure the host node to allow GPU passthrough.",
+            "Edit the VM and add a 'gpus' device to its hardware specification.",
+            "Boot the VM and verify the GPU is visible inside the guest OS."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task09",
+      "title": "Set a custom MAC address for a VM network interface",
+      "sections": [
+        {
+          "title": "Network Customization",
+          "notice": "A legacy application inside a VM requires a fixed MAC address to be licensed.",
+          "subtasks": [
+            "Edit the 'VirtualMachine' object.",
+            "Find the network interface that needs the custom MAC address.",
+            "Add the 'macAddress' field and specify a valid, unique MAC address.",
+            "Start the VM and verify inside the guest OS that the interface has the correct MAC."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task10",
+      "title": "Clone a DataVolume without creating a VM",
+      "sections": [
+        {
+          "title": "Disk-Only Cloning",
+          "notice": "You need a copy of a VM's root disk for offline analysis.",
+          "subtasks": [
+            "Identify the DataVolume associated with the VM's root disk.",
+            "Create a new DataVolume custom resource.",
+            "In the spec, use the 'source' field and specify the source DataVolume.",
+            "Verify the new DataVolume is created and populated with the cloned disk image."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Configure a VM to boot from a specific kernel and initrd image",
+      "sections": [
+        {
+          "title": "Custom Boot Configuration",
+          "notice": "A troubleshooting VM needs to boot with a custom-built kernel.",
+          "subtasks": [
+            "Place the custom kernel and initrd files in a location accessible to the VM (e.g., on a PVC).",
+            "Edit the VirtualMachine object.",
+            "Add a 'kernelBoot' section to the spec.",
+            "Specify the paths to the custom kernel and initrd images."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Perform an emergency shutdown of a non-responsive VM",
+      "sections": [
+        {
+          "title": "Force Stop",
+          "notice": "A VM is not responding to a normal stop command.",
+          "subtasks": [
+            "Attempt to stop the VM using 'oc virt stop <vm-name>'.",
+            "After it fails to stop in a timely manner, use the '--force' flag.",
+            "Specify a grace period of 0 seconds to immediately terminate the VM pod.",
+            "Verify the VM and its associated pod are terminated."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task13",
+      "title": "Limit the number of concurrent live migrations per node",
+      "sections": [
+        {
+          "title": "Resource Throttling",
+          "notice": "Prevent live migrations from overwhelming node resources.",
+          "subtasks": [
+            "Edit the 'HyperConverged' custom resource.",
+            "Navigate to the 'liveMigrationConfig' section.",
+            "Set the 'parallelMigrationsPerCluster' and 'parallelOutboundMigrationsPerNode' to a lower value (e.g., 2).",
+            "Apply the change and verify the configuration is updated."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task14",
+      "title": "Create a VM that uses multiple disks from different storage classes",
+      "sections": [
+        {
+          "title": "Tiered Storage VM",
+          "notice": "Deploy a VM with its OS on a fast SSD-based StorageClass and its data on a slower, larger HDD-based StorageClass.",
+          "subtasks": [
+            "Create two PVCs, 'os-disk-pvc' and 'data-disk-pvc', using two different StorageClasses.",
+            "Create a new VirtualMachine object.",
+            "Define two volumes, one for each PVC.",
+            "Attach the 'os-disk-pvc' as the boot disk and the 'data-disk-pvc' as a secondary data disk."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task15",
+      "title": "Troubleshoot a VM stuck in 'Starting' state",
+      "sections": [
+        {
+          "title": "Debugging Startup Issues",
+          "notice": "A newly created VM is not becoming ready. Find the cause.",
+          "subtasks": [
+            "Describe the VirtualMachineInstance (VMI) and look for error events.",
+            "Check the logs of the 'virt-launcher' pod for the VM.",
+            "Examine the VM's console logs for kernel panic or OS-level errors.",
+            "Identify and fix the issue (e.g., a misconfigured cloud-init script or a corrupted disk image)."
+          ]
+        }
+      ]
+    }
+  ]
+}

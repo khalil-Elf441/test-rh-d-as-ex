@@ -1,0 +1,258 @@
+
+{
+  "examId": "ex316-3",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 3",
+  "description": "Challenges focused on migration, high availability, and advanced template management.",
+  "timeLimit": "4 hours",
+  "tasks": [
+    {
+      "id": "task01",
+      "title": "Migrate a VM from a traditional VMware vSphere environment",
+      "sections": [
+        {
+          "title": "Provider Setup",
+          "notice": "Configure a connection to an external vSphere environment.",
+          "subtasks": [
+            "Create a secret named 'vsphere-credentials' containing the vCenter URL, username, and password.",
+            "Create a 'Provider' custom resource for VMware.",
+            "Reference the secret and the vCenter fingerprint in the Provider CR.",
+            "Verify the provider connection status is 'Ready'."
+          ]
+        },
+        {
+          "title": "Migration Plan",
+          "notice": "Create a plan to migrate a specific VM.",
+          "subtasks": [
+            "Create a 'Plan' custom resource.",
+            "Map the vSphere source network to an OpenShift network (NAD).",
+            "Map the vSphere source datastore to an OpenShift StorageClass.",
+            "Select the specific VM from the vSphere inventory to be migrated."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task02",
+      "title": "Execute and verify a VM migration",
+      "sections": [
+        {
+          "title": "Migration Execution",
+          "notice": "Run the migration plan and ensure the VM is running in OpenShift.",
+          "subtasks": [
+            "Create a 'Migration' custom resource referencing the previously created plan.",
+            "Monitor the migration progress until it is marked as 'Succeeded'.",
+            "Verify the new VM is running in the target namespace in OpenShift.",
+            "Check that the VM's data and network configuration are correct."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task03",
+      "title": "Customize a common template with cloud-init",
+      "sections": [
+        {
+          "title": "Template Enhancement",
+          "notice": "Create a new RHEL9 template that automatically creates a user named 'admin' on first boot.",
+          "subtasks": [
+            "Find the default RHEL9 template provided by OpenShift.",
+            "Clone the template to create a new one named 'rhel9-custom-user'.",
+            "Edit the new template to include a 'cloudInitNoCloud' section.",
+            "Add user data to create a user 'admin' with sudo privileges and a default SSH key."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task04",
+      "title": "Deploy a VM from the custom cloud-init template",
+      "sections": [
+        {
+          "title": "VM Deployment",
+          "notice": "Test the new template by deploying a VM.",
+          "subtasks": [
+            "Create a new VM named 'test-cloud-init' from the 'rhel9-custom-user' template.",
+            "Boot the VM and wait for it to be ready.",
+            "Access the VM via its console or SSH and verify that the 'admin' user exists."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task05",
+      "title": "Manage VM load balancing using an Ingress object",
+      "sections": [
+        {
+          "title": "Ingress Configuration",
+          "notice": "Expose the 'web-server-1' VM on the hostname 'webapp.apps.example.com'.",
+          "subtasks": [
+            "Ensure the VM is exposed internally via a ClusterIP service.",
+            "Create an 'Ingress' resource.",
+            "Define a rule that directs traffic from 'webapp.apps.example.com' to the VM's service.",
+            "Verify you can access the VM's web server using the specified hostname."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task06",
+      "title": "Perform a live update of the OpenShift Virtualization Operator",
+      "sections": [
+        {
+          "title": "Operator Update",
+          "notice": "Update the operator from its current version to the next available stable version.",
+          "subtasks": [
+            "Review the current operator subscription to see the installed version and channel.",
+            "Change the subscription to approve manual updates if it is set to automatic.",
+            "Approve the pending update to the next stable version.",
+            "Monitor the upgrade process and verify all virtualization components are updated and healthy."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task07",
+      "title": "Configure a VM to use a ReadWriteMany (RWX) PVC",
+      "sections": [
+        {
+          "title": "Shared Storage Setup",
+          "notice": "Deploy two web server VMs that share a single PVC for web content.",
+          "subtasks": [
+            "Ensure an RWX-capable StorageClass (like OpenShift Data Foundation) is available.",
+            "Create a PVC named 'shared-content-pvc' with 'ReadWriteMany' access mode.",
+            "Deploy two VMs, 'web-1' and 'web-2'.",
+            "Attach 'shared-content-pvc' as a data volume to both VMs."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task08",
+      "title": "Take a consistent online snapshot of a VM with a running database",
+      "sections": [
+        {
+          "title": "Application-Consistent Snapshot",
+          "notice": "Use hooks to freeze the filesystem of a database before taking a snapshot.",
+          "subtasks": [
+            "Install the QEMU guest agent on the database VM.",
+            "Create a 'VirtualMachineSnapshot' resource.",
+            "Add a 'guestAgentPing' probe to the snapshot definition to ensure the agent is responsive.",
+            "Verify the snapshot completes successfully."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task09",
+      "title": "Clone a VM to a different namespace",
+      "sections": [
+        {
+          "title": "Cross-Namespace Cloning",
+          "notice": "Clone the 'db-server' from the 'default' namespace to the 'testing' namespace.",
+          "subtasks": [
+            "Create the 'testing' namespace.",
+            "Create a 'VirtualMachineClone' resource in the 'default' namespace.",
+            "Specify the source VM and set the 'targetNamespace' property to 'testing'.",
+            "Verify the cloned VM appears in the 'testing' namespace."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task10",
+      "title": "Set CPU and Memory limits on a VM",
+      "sections": [
+        {
+          "title": "Resource Management",
+          "notice": "Prevent the 'dev-vm' from consuming excessive node resources.",
+          "subtasks": [
+            "Edit the 'dev-vm' VirtualMachine object.",
+            "Under the 'domain' spec, set CPU requests and limits (e.g., 1 core, 2 cores).",
+            "Set memory requests and limits (e.g., 2Gi, 4Gi).",
+            "Verify the changes are applied to the underlying VMI and pod."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Connect a VM directly to an external network using a macvtap NAD",
+      "sections": [
+        {
+          "title": "Macvtap Configuration",
+          "notice": "Provide a VM with a dedicated interface on the host's physical network.",
+          "subtasks": [
+            "Identify the name of the primary network interface on a worker node (e.g., eth0).",
+            "Create a NetworkAttachmentDefinition using the 'macvtap' CNI plugin.",
+            "Specify the node's interface name in the NAD configuration.",
+            "Deploy a new VM and attach it to this macvtap network."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Manually live migrate a VM and pin it to a specific node",
+      "sections": [
+        {
+          "title": "Controlled Migration",
+          "notice": "Move a VM to a specific high-performance node and ensure it stays there.",
+          "subtasks": [
+            "Add a label to the target worker node (e.g., 'high-performance=true').",
+            "Initiate a live migration for the target VM.",
+            "After migration, edit the VM to add a 'nodeSelector' that targets the 'high-performance=true' label.",
+            "Verify the VM is running on the correct node."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task13",
+      "title": "Configure a soft pod anti-affinity for a group of VMs",
+      "sections": [
+        {
+          "title": "Scheduling Preference",
+          "notice": "Encourage a group of three web server VMs to run on different nodes if possible.",
+          "subtasks": [
+            "Ensure all three web server VMs share a common label (e.g., 'app: web-cluster').",
+            "Edit the VirtualMachine template or objects.",
+            "Add a 'podAntiAffinity' rule with a 'preferredDuringSchedulingIgnoredDuringExecution' weight.",
+            "Configure the rule to avoid pods with the 'app: web-cluster' label."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task14",
+      "title": "Update the default network interface of a running VM",
+      "sections": [
+        {
+          "title": "Hotplug Network Update",
+          "notice": "Change the default network attachment for a VM from the pod network to a specific NAD without a reboot.",
+          "subtasks": [
+            "Ensure the VM has the QEMU guest agent installed.",
+            "Create a new NAD for the desired network.",
+            "Use the 'oc virt hotplug' command to add a new interface attached to the NAD.",
+            "Use the same command to remove the old default interface."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task15",
+      "title": "Expose VM metrics to the OpenShift Monitoring stack",
+      "sections": [
+        {
+          "title": "Monitoring Integration",
+          "notice": "Ensure that VM-level CPU and memory metrics are visible in the OpenShift console.",
+          "subtasks": [
+            "Verify that the 'kubevirt-prometheus-metrics' ServiceMonitor is present.",
+            "Navigate to the 'Observe' -> 'Metrics' section in the OpenShift console.",
+            "Run a PromQL query for 'kubevirt_vmi_memory_used_bytes' to see metrics for running VMs.",
+            "Create a custom dashboard panel showing the CPU usage for a specific VM."
+          ]
+        }
+      ]
+    }
+  ]
+}
