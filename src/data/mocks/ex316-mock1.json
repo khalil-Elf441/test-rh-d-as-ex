@@ -26,7 +26,7 @@
       "id": "task02",
       "title": "Install and configure MariaDB server",
       "sections": [
-        {,
+        {
           "title": "Installation and service setup",
           "notice": "Ensure MariaDB is installed and running on boot.",
           "subtasks": [
