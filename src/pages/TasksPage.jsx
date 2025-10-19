@@ -42,15 +42,15 @@ const TasksPage = () => {
         <ul className="task-list-exam">
             {currentExam.tasks.map((task) => (
             <li key={task.id}>
+                <Link to={`/task/${examId}/${task.id}`}>
+                {task.title}
+                </Link>
                 <TaskRadio
                     examId={examId}
                     taskId={task.id}
                     status={taskStatuses[task.id] || 'revise'}
                     onStatusChange={handleStatusChange}
                 />
-                <Link to={`/task/${examId}/${task.id}`}>
-                {task.title}
-                </Link>
             </li>
             ))}
         </ul>
