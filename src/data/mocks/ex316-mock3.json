@@ -7,7 +7,7 @@
     {
       "id": "task01",
       "title": "Deploy and Configure OADP for Virtual Machine Backup",
-      "solution": "# 1. Install Operator via OperatorHub\n# (UI-based task, search for OADP Operator for OpenShift Virtualization)\n\n# 2. Create DataProtectionApplication (DPA)\n# Note: This assumes a secret named 'cloud-credentials' with S3 keys exists in the 'openshift-adp' namespace.\noc create -f - -n openshift-adp <<EOF\napiVersion: oadp.openshift.io/v1alpha1\nkind: DataProtectionApplication\nmetadata:\n  name: velero-dpa\nspec:\n  backupLocations:\n  - velero:\n      config:\n        profile: default\n        region: us-east-1\n      credential:\n        key: cloud\n        name: cloud-credentials\n      default: true\n      objectStorage:\n        bucket: your-s3-bucket-name\n        prefix: velero\n      provider: aws\n  configuration:\n    restic:\n      enable: true\n    velero:\n      defaultPlugins:\n      - openshift\n      - csi\n      - kubevirt\nEOF\n\n# 3. Verify\noc get pods -n openshift-adp -w\n",
+      "solution": "# 1. Install Operator via OperatorHub\n# (UI-based task)\n\n# 2. Create DataProtectionApplication (DPA)\n# Note: This assumes a secret named 'cloud-credentials' with S3 keys exists in the 'openshift-adp' namespace.\noc create -f - -n openshift-adp <<EOF\napiVersion: oadp.openshift.io/v1alpha1\nkind: DataProtectionApplication\nmetadata:\n  name: velero-dpa\nspec:\n  backupLocations:\n  - velero:\n      config:\n        profile: default\n        region: us-east-1\n      credential:\n        key: cloud\n        name: cloud-credentials\n      default: true\n      objectStorage:\n        bucket: your-s3-bucket-name\n        prefix: velero\n      provider: aws\n  configuration:\n    restic:\n      enable: true\n    velero:\n      defaultPlugins:\n      - openshift\n      - csi\n      - kubevirt\nEOF\n\n# 3. Verify\noc get pods -n openshift-adp -w\n",
       "sections": [
         {
           "title": "Operator Deployment",
@@ -194,7 +194,7 @@
     {
       "id": "task12",
       "title": "Configure a Health Probe for the Backend VM",
-      "solution": "# 1. Add Liveness Probe via patch\noc patch vm backend-vm -n backend-prod --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/livenessProbe\", \"value\": {\"tcpSocket\": {\"port\": 5432}, \"initialDelaySeconds\": 90, \"failureThreshold\": 5}}}]'\n\n# 2. Verify\n# oc get vm backend-vm -n backend-prod -o yaml\n",
+      "solution": "# 1. Add Liveness Probe via patch\noc patch vm backend-vm -n backend-prod --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/livenessProbe\", \"value\": {\"tcpSocket\": {\"port\": 5432}, \"initialDelaySeconds\": 90, \"failureThreshold\": 5}}]'\n\n# 2. Verify\n# oc get vm backend-vm -n backend-prod -o yaml\n",
       "sections": [
         {
           "title": "Liveness Probe",
@@ -211,7 +211,7 @@
     {
       "id": "task13",
       "title": "Install a Custom Package on the Frontend VM",
-      "solution": "# This task is performed inside the VM.\n# 1. Access the VM\noc console frontend-vm -n frontend-prod\n\n# 2. Create repo file\nsudo -i\necho -e \"[monitoring]\\nname=Monitoring Agent Repo\\nbaseurl=http://repo.example.com/monitoring_agents\\nenabled=1\\ngpgcheck=0\" > /etc/yum.repos.d/monitoring.repo\n\n# 3. Install package\ndnf install -y grafana-agent\n\n# 4. Enable and start service\nsystemctl enable --now grafana-agent\n",
+      "solution": "# This task is performed inside the VM.\n# 1. Access the VM\noc console frontend-vm -n frontend-prod\n\n# 2. Create repo file\nsudo -i\necho -e \"[monitoring]\nname=Monitoring Agent Repo\nbaseurl=http://repo.example.com/monitoring_agents\nenabled=1\ngpgcheck=0\" > /etc/yum.repos.d/monitoring.repo\n\n# 3. Install package\ndnf install -y grafana-agent\n\n# 4. Enable and start service\nsystemctl enable --now grafana-agent\n",
       "sections": [
         {
           "title": "System Administration",

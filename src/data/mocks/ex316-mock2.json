@@ -25,7 +25,7 @@
     {
       "id": "task02",
       "title": "Configure High Availability for the Migrated VM",
-      "solution": "# 1. Set Eviction Strategy\noc patch vm legacy-erp -n erp-prod --type merge -p '{\"spec\":{\"template\":{\"spec\":{\"evictionStrategy\":\"LiveMigrateIfPossible\"}}}}'\n\n# 2. Add Liveness Probe\noc patch vm legacy-erp -n erp-prod --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/livenessProbe\", \"value\": {\"tcpSocket\": {\"port\": 8080}, \"initialDelaySeconds\": 120}}}]'\n\n# 3. Add Watchdog\noc patch vm legacy-erp -n erp-prod --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/watchdog\", \"value\": {\"name\": \"mywatchdog\", \"i6300esb\": {\"action\": \"reset\"}}}]'\n\n# 4. Verify\noc get vm legacy-erp -n erp-prod -o yaml\n",
+      "solution": "# 1. Set Eviction Strategy\noc patch vm legacy-erp -n erp-prod --type merge -p '{\"spec\":{\"template\":{\"spec\":{\"evictionStrategy\":\"LiveMigrateIfPossible\"}}}}'\n\n# 2. Add Liveness Probe\noc patch vm legacy-erp -n erp-prod --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/livenessProbe\", \"value\": {\"tcpSocket\": {\"port\": 8080}, \"initialDelaySeconds\": 120}}]'\n\n# 3. Add Watchdog\noc patch vm legacy-erp -n erp-prod --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/watchdog\", \"value\": {\"name\": \"mywatchdog\", \"i6300esb\": {\"action\": \"reset\"}}}]'\n\n# 4. Verify\noc get vm legacy-erp -n erp-prod -o yaml\n",
       "sections": [
         {
           "title": "Eviction Strategy and Health Probes",
@@ -127,7 +127,7 @@
     {
       "id": "task08",
       "title": "Clone the ERP VM for testing",
-      "solution": "# 1. Create Namespace\noc create namespace erp-uat\n\n# 2. Create Clone CR with target namespace\noc create -f - -n erp-prod <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineClone\nmetadata:\n  name: erp-uat-clone\nspec:\n  source:\\n    kind: VirtualMachine\\n    name: legacy-erp\\n  target:\\n    name: erp-uat-clone\\n    namespace: erp-uat\\nEOF\n\n# 3. Verify\noc get vm erp-uat-clone -n erp-uat\n",
+      "solution": "# 1. Create Namespace\noc create namespace erp-uat\n\n# 2. Create Clone CR with target namespace\noc create -f - -n erp-prod <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineClone\nmetadata:\n  name: erp-uat-clone\nspec:\n  source:\n    kind: VirtualMachine\n    name: legacy-erp\n  target:\n    name: erp-uat-clone\n    namespace: erp-uat\nEOF\n\n# 3. Verify\noc get vm erp-uat-clone -n erp-uat\n",
       "sections": [
         {
           "title": "Cloning for UAT",
@@ -212,7 +212,7 @@
     {
       "id": "task13",
       "title": "Install a custom package on the Analytics VM",
-      "solution": "# This task is performed inside the VM.\n# 1. Access the VM\noc console analytics-vm -n analytics\n\n# 2. Create repo file\nsudo -i\necho -e \"[datascience]\\nname=Data Science Repo\\nbaseurl=http://repo.example.com/datascience\\nenabled=1\\ngpgcheck=0\" > /etc/yum.repos.d/datascience.repo\n\n# 3. Install package\ndnf install -y python3-pandas\n\n# 4. Verify\nrpm -q python3-pandas\n",
+      "solution": "# This task is performed inside the VM.\n# 1. Access the VM\noc console analytics-vm -n analytics\n\n# 2. Create repo file\nsudo -i\necho -e \"[datascience]\nname=Data Science Repo\nbaseurl=http://repo.example.com/datascience\nenabled=1\ngpgcheck=0\" > /etc/yum.repos.d/datascience.repo\n\n# 3. Install package\ndnf install -y python3-pandas\n\n# 4. Verify\nrpm -q python3-pandas\n",
       "sections": [
         {
           "title": "Basic System Administration",

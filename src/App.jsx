@@ -7,6 +7,7 @@ import TasksPage from './pages/TasksPage';
 import TaskDetail from './pages/TaskDetail';
 import ExamplePage from './pages/ExamplePage';
 import NotFound from './pages/NotFound';
+import SolutionPage from './pages/SolutionPage';
 
 // Layout for exam pages (with Sidebar)
 const ExamLayout = ({ startTime, onStartExam }) => (
@@ -68,6 +69,7 @@ function App() {
       <Route element={<ExamLayout startTime={startTime} onStartExam={handleStartExam} />}>
         <Route path="/tasks/:examId" element={<TasksPage />} />
         <Route path="/task/:examId/:taskId" element={<TaskDetail />} />
+        <Route path="/solution/:examId/:taskId" element={<SolutionPage />} />
       </Route>
 
       {/* 404 Page */}

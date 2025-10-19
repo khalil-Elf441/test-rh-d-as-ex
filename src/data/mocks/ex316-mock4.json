@@ -25,7 +25,7 @@
     {
       "id": "task02",
       "title": "Configure High Availability for the VM",
-      "solution": "# 1. Set Eviction Strategy\noc patch vm latency-critical-vm -n realtime-apps --type merge -p '{\"spec\":{\"template\":{\"spec\":{\"evictionStrategy\":\"LiveMigrateIfPossible\"}}}}'\n\n# 2. Add Liveness Probe\noc patch vm latency-critical-vm -n realtime-apps --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/livenessProbe\", \"value\": {\"tcpSocket\": {\"port\": 9000}, \"initialDelaySeconds\": 120}}}]'\n\n# 3. Add Watchdog\noc patch vm latency-critical-vm -n realtime-apps --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/watchdog\", \"value\": {\"name\": \"watchdog\", \"i6300esb\": {\"action\": \"reset\"}}}]'\n\n# 4. Verify\noc get vm latency-critical-vm -n realtime-apps -o yaml\n",
+      "solution": "# 1. Set Eviction Strategy\noc patch vm latency-critical-vm -n realtime-apps --type merge -p '{\"spec\":{\"template\":{\"spec\":{\"evictionStrategy\":\"LiveMigrateIfPossible\"}}}}'\n\n# 2. Add Liveness Probe\noc patch vm latency-critical-vm -n realtime-apps --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/livenessProbe\", \"value\": {\"tcpSocket\": {\"port\": 9000}, \"initialDelaySeconds\": 120}}]'\n\n# 3. Add Watchdog\noc patch vm latency-critical-vm -n realtime-apps --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/watchdog\", \"value\": {\"name\": \"watchdog\", \"i6300esb\": {\"action\": \"reset\"}}}]'\n\n# 4. Verify\noc get vm latency-critical-vm -n realtime-apps -o yaml\n",
       "sections": [
         {
           "title": "Health Probes and Eviction Strategy",
@@ -42,7 +42,9 @@
     {
       "id": "task03",
       "title": "Configure Redundant Load Balancer VMs with Anti-Affinity",
-      "solution": "# 1. Create Namespace\noc create namespace infra-services\n\n# 2. Create VMs with Anti-Affinity\noc create -f - -n infra-services <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: lb-1\n  labels:\n    role: lb-pair\nspec:\n  template:\n    metadata:\n      labels:\n        role: lb-pair\n    spec:\n      affinity:\n        podAntiAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n          - labelSelector:\n              matchExpressions:\n              - key: role\n                operator: In\n                values:\n                - lb-pair\n            topologyKey: kubernetes.io/hostname\n      domain: {}\n      volumes: []\n---\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: lb-2\n  labels:\n    role: lb-pair\nspec:\n  template:\n    metadata:\n      labels:\n        role: lb-pair\n    spec:\n      affinity:\n        podAntiAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n          - labelSelector:\n              matchExpressions:\n              - key: role\n                operator: In\n                values:\n                - lb-pair\n            topologyKey: kubernetes.io/hostname\n      domain: {}\n      volumes: []\nEOF\n\n# 3. Verify\noc get pods -n infra-services -o wide\n",
+      "solution": "# 1. Create Namespace\noc create namespace infra-services\n\n# 2. Create VMs with Anti-Affinity\noc create -f - -n infra-services <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: lb-1\n  labels:\n    role: lb-pair\nspec:\n  template:\n    metadata:\n      labels:\n        role: lb-pair\n    spec:\n      affinity:\n        podAntiAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n          - labelSelector:\n              matchExpressions:\n              - key: role\n                operator: In\n                values:\n                - lb-pair\n            topologyKey: kubernetes.io/hostname\n      domain: {}
+      volumes: []\n---\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: lb-2\n  labels:\n    role: lb-pair\nspec:\n  template:\n    metadata:\n      labels:\n        role: lb-pair\n    spec:\n      affinity:\n        podAntiAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n          - labelSelector:\n              matchExpressions:\n              - key: role\n                operator: In\n                values:\n                - lb-pair\n            topologyKey: kubernetes.io/hostname\n      domain: {}
+      volumes: []\nEOF\n\n# 3. Verify\noc get pods -n infra-services -o wide\n",
       "sections": [
         {
           "title": "VM Anti-Affinity",
@@ -76,7 +78,8 @@
     {
       "id": "task05",
       "title": "Use Taints and Tolerations for a Dedicated GPU Node",
-      "solution": "# 1. Create Namespace\noc create namespace ml-ops\n\n# 2. Taint a node\nNODE_TO_TAINT=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[0].metadata.name}')\noc adm taint node $NODE_TO_TAINT gpu=true:NoSchedule\n\n# 3. Deploy VM with Toleration\noc create -f - -n ml-ops <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: ml-training-vm\nspec:\n  template:\n    spec:\n      tolerations:\n      - key: \"gpu\"\n        operator: \"Equal\"\n        value: \"true\"\n        effect: \"NoSchedule\"\n      domain: {}\n      volumes: []\nEOF\n",
+      "solution": "# 1. Create Namespace\noc create namespace ml-ops\n\n# 2. Taint a node\nNODE_TO_TAINT=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[0].metadata.name}')\noc adm taint node $NODE_TO_TAINT gpu=true:NoSchedule\n\n# 3. Deploy VM with Toleration\noc create -f - -n ml-ops <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: ml-training-vm\nspec:\n  template:\n    spec:\n      tolerations:\n      - key: \"gpu\"\n        operator: \"Equal\"\n        value: \"true\"\n        effect: \"NoSchedule\"\n      domain: {}
+      volumes: []\nEOF\n",
       "sections": [
         {
           "title": "Node Tainting and VM Tolerations",
@@ -148,7 +151,7 @@
       "sections": [
         {
           "title": "DataVolume Cloning",
-          "notice": "Create a backup copy of the 'latency-critical-vm's' root disk. Perform actions in the 'realtime-apps' namespace.",
+          "notice": "Create a backup copy of the 'latency-critical-vm\'s' root disk. Perform actions in the 'realtime-apps' namespace.",
           "subtasks": [
             "Identify the root PVC for the 'latency-critical-vm'.",
             "Create a DataVolume that clones this PVC to a new PVC named 'latency-vm-disk-backup'.",
@@ -161,7 +164,8 @@
     {
       "id": "task10",
       "title": "Configure a Preferred Node Affinity",
-      "solution": "# 1. Label node\noc label node <your-chosen-node-name> region=east --overwrite\n\n# 2. Deploy VM with preferred affinity\noc create -f - -n ml-ops <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: reporting-vm\nspec:\n  template:\n    spec:\n      affinity:\n        nodeAffinity:\n          preferredDuringSchedulingIgnoredDuringExecution:\n          - weight: 1\n            preference:\n              matchExpressions:\n              - key: region\n                operator: In\n                values:\n                - east\n      domain: {}\n      volumes: []\nEOF\n\n# 3. Verify (check which node it landed on)\noc get pod -l kubevirt.io/domain=reporting-vm -n ml-ops -o wide\n",
+      "solution": "# 1. Label node\noc label node <your-chosen-node-name> region=east --overwrite\n\n# 2. Deploy VM with preferred affinity\noc create -f - -n ml-ops <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: reporting-vm\nspec:\n  template:\n    spec:\n      affinity:\n        nodeAffinity:\n          preferredDuringSchedulingIgnoredDuringExecution:\n          - weight: 1\n            preference:\n              matchExpressions:\n              - key: region\n                operator: In\n                values:\n                - east\n      domain: {}
+      volumes: []\nEOF\n\n# 3. Verify (check which node it landed on)\noc get pod -l kubevirt.io/domain=reporting-vm -n ml-ops -o wide\n",
       "sections": [
         {
           "title": "Scheduling Preference",

@@ -66,16 +66,9 @@ const TaskDetail = () => {
 
       <hr />
       <div style={{ marginTop: '2rem' }}>
-        <button onClick={() => setShowSolution(!showSolution)} className="btn">
-          {showSolution ? 'Hide Solution' : 'Show Solution'}
-        </button>
-        {showSolution && (
-            <div style={{ marginTop: '1rem' }}>
-                <pre style={{ background: '#f4f4f4', padding: '1rem', borderRadius: '4px', border: '1px solid #ddd' }}>
-                    {solutionContent}
-                </pre>
-            </div>
-        )}
+        <Link to={`/solution/${examId}/${taskId}`} className="btn">
+          Show Solution
+        </Link>
       </div>
     </div>
   );
