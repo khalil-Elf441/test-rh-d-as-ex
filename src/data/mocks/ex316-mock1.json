@@ -7,7 +7,7 @@
     {
       "id": "task01",
       "title": "Deploy a database server with a custom repository",
-      "solution": "# 1. Create Namespace\noc create namespace db-app-ns\n\n# 2. Create VM from a template (assumes a rhel9 template exists)\noc process -n openshift rhel9 --param NAME=db-server | oc create -n db-app-ns -f -\n\n# 3. Wait for VM to be running\noc wait --for=condition=Ready vmi/db-server -n db-app-ns --timeout=300s\n\n# 4. Install and configure services inside the VM\n# You would use \'oc console\' or \'virtctl ssh\' to access the VM\n# sudo -i\n# echo -e \"[custom-db]\\nname=Custom DB Repo\\nbaseurl=http://repo.example.com/db_packages\\nenabled=1\\ngpgcheck=0\" > /etc/yum.repos.d/custom.repo\n# dnf install -y mariadb-server\n# systemctl enable --now mariadb",
+      "solution": "# 1. Create Namespace\noc create namespace db-app-ns\n\n# 2. Create VM from a template (assumes a rhel9 template exists)\noc process -n openshift rhel9 --param NAME=db-server | oc create -n db-app-ns -f -\n\n# 3. Wait for VM to be running\noc wait --for=condition=Ready vmi/db-server -n db-app-ns --timeout=300s\n\n# 4. Install and configure services inside the VM\n# You would use 'oc console' or 'virtctl ssh' to access the VM\n# sudo -i\n# echo -e \"[custom-db]\nname=Custom DB Repo\nbaseurl=http://repo.example.com/db_packages\nenabled=1\ngpgcheck=0\" > /etc/yum.repos.d/custom.repo\n# dnf install -y mariadb-server\n# systemctl enable --now mariadb",
       "sections": [
         {
           "title": "Namespace and VM Provisioning",
