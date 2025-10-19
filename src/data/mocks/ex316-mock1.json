@@ -1,0 +1,66 @@
+
+{
+  "examId": "ex316",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 1",
+  "description": "Simulated Red Hat exam environment for OpenShift Virtualization.",
+  "timeLimit": "4 hours",
+  "tasks": [
+    {
+      "id": "task01",
+      "title": "Deploy a Virtual Machine from a template",
+      "sections": [
+        {
+          "title": "VM Creation",
+          "notice": "Create a new VM named 'db-server' from the 'rhel9-server' template.",
+          "subtasks": [
+            "Navigate to the 'Virtualization' -> 'Virtual Machines' section.",
+            "Start the creation from a template.",
+            "Select the 'rhel9-server' template.",
+            "Name the VM 'db-server'.",
+            "Allocate 2 CPUs and 4GiB of memory."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task02",
+      "title": "Install and configure MariaDB server",
+      "sections": [
+        {
+          "title": "Installation and service setup",
+          "notice": "Ensure MariaDB is installed and running on boot.",
+          "subtasks": [
+            "Configure internal repo for database packages.",
+            "Install MariaDB server packages.",
+            "Enable and start the MariaDB service.",
+            "Verify the service is listening on the default port (3306)."
+          ]
+        },
+        {
+          "title": "Liveness & Readiness Probes",
+          "notice": "The VM should recover automatically if the MariaDB service is stopped.",
+          "subtasks": [
+            "Add a Liveness Probe to the VM configuration.",
+            "Add a Readiness Probe to the VM configuration."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task03",
+      "title": "Expose the database service",
+      "sections": [
+        {
+          "title": "Service Creation",
+          "notice": "Create a NodePort service to expose the MariaDB port.",
+          "subtasks": [
+            "Create a new Service named 'db-service'.",
+            "Set the service type to 'NodePort'.",
+            "Map the service to the VM 'db-server'.",
+            "Expose the container port 3306."
+          ]
+        }
+      ]
+    }
+  ]
+}

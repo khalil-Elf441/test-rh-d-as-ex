@@ -1,0 +1,232 @@
+
+/* General Styles */
+:root {
+  --rh-red: #EE0000;
+  --rh-dark-red: #CC0000;
+  --rh-blue: #007BFF;
+  --rh-dark-gray: #333;
+  --rh-medium-gray: #666;
+  --rh-light-gray: #f4f4f4;
+  --rh-border-color: #ddd;
+  --rh-bg-color: #fff;
+  --rh-text-color: #333;
+  --rh-done-color: #28a745;
+  --rh-revise-color: #ffc107;
+}
+
+body {
+  font-family: 'Red Hat Display', 'Overpass', sans-serif;
+  margin: 0;
+  background-color: var(--rh-light-gray);
+  color: var(--rh-text-color);
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 0 1.5rem;
+}
+
+a {
+  color: var(--rh-blue);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Header */
+.header {
+  background-color: var(--rh-dark-gray);
+  color: white;
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 4px solid var(--rh-red);
+}
+
+.header-title {
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: white;
+  text-decoration: none;
+}
+
+.header-logo {
+  height: 40px;
+  width: auto;
+}
+
+/* Card styles */
+.card {
+  background: var(--rh-bg-color);
+  border: 1px solid var(--rh-border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.card-title {
+  font-size: 1.8rem;
+  margin-top: 0;
+  color: var(--rh-red);
+}
+
+.card-description {
+  font-size: 1.1rem;
+  color: var(--rh-medium-gray);
+}
+
+.btn {
+  display: inline-block;
+  background-color: var(--rh-red);
+  color: white;
+  padding: 0.8rem 1.5rem;
+  border-radius: 5px;
+  font-weight: bold;
+  text-transform: uppercase;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn:hover {
+  background-color: var(--rh-dark-red);
+  color: white;
+  text-decoration: none;
+}
+
+/* Task List */
+.task-list {
+  list-style: none;
+  padding: 0;
+}
+
+.task-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid var(--rh-border-color);
+}
+
+.task-item:last-child {
+  border-bottom: none;
+}
+
+.task-item-title {
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+/* Task Radio Component */
+.task-radio {
+  display: flex;
+  gap: 1rem;
+}
+
+.task-radio label {
+  cursor: pointer;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.task-radio input[type="radio"] {
+  display: none;
+}
+
+.task-radio input[type="radio"]:checked + label {
+  color: white;
+}
+
+.task-radio input[id*="revise"]:checked + label {
+  background-color: var(--rh-revise-color);
+  border: 1px solid var(--rh-revise-color);
+}
+
+.task-radio input[id*="done"]:checked + label {
+  background-color: var(--rh-done-color);
+  border: 1px solid var(--rh-done-color);
+}
+
+.task-radio label {
+  background-color: #e9ecef;
+  border: 1px solid #ced4da;
+  color: #495057;
+}
+
+
+/* Task Detail */
+.task-detail-header {
+  border-bottom: 2px solid var(--rh-border-color);
+  padding-bottom: 1rem;
+  margin-bottom: 2rem;
+}
+
+.task-detail-title {
+  font-size: 2.5rem;
+  margin: 0;
+}
+
+.task-section {
+  margin-bottom: 2.5rem;
+}
+
+.section-title {
+  font-size: 1.5rem;
+  color: var(--rh-dark-gray);
+  border-bottom: 1px solid var(--rh-border-color);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.section-notice {
+  background-color: #e7f3fe;
+  border-left: 4px solid var(--rh-blue);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  font-style: italic;
+}
+
+/* Subtask Checkbox */
+.subtask-list {
+  list-style: none;
+  padding: 0;
+}
+
+.subtask-item {
+  margin-bottom: 0.8rem;
+}
+
+.subtask-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+
+.subtask-label input[type="checkbox"] {
+  width: 1.3em;
+  height: 1.3em;
+  margin-right: 0.8rem;
+  cursor: pointer;
+}
+
+.subtask-label span.completed {
+  text-decoration: line-through;
+  color: var(--rh-medium-gray);
+}
+
+/* Back button */
+.back-link {
+  display: inline-block;
+  margin-bottom: 2rem;
+  font-size: 1.1rem;
+}
