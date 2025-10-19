@@ -1,4 +1,3 @@
-
 {
   "examId": "ex316-5",
   "title": "OpenShift Virtualization Specialist (EX316) — Mock 5: Full Spectrum Review",
@@ -7,224 +6,154 @@
   "tasks": [
     {
       "id": "task01",
-      "title": "Deploy a web server VM and configure its service",
+      "title": "Deploy and configure a multi-tier application",
       "sections": [
         {
-          "title": "VM and Service Provisioning",
-          "notice": "Deploy a VM named 'web-final-vm' and expose it internally.",
+          "title": "Web and Database Tiers",
+          "notice": "Deploy a web server and a database server, each in its own namespace.",
           "subtasks": [
-            "Provision 'web-final-vm' from the RHEL9 template with 2 CPUs and 2Gi memory.",
-            "Inside the VM, install the 'httpd' package and start the service.",
-            "Create a ClusterIP service named 'web-final-svc' that exposes port 80 on the VM."
+            "Create a namespace 'webapp-prod'.",
+            "Create a namespace 'db-prod'.",
+            "In 'webapp-prod', deploy a VM named 'webapp-vm' from a RHEL9 template. Inside the VM, install and enable 'httpd'.",
+            "In 'db-prod', deploy a VM named 'db-vm' from a RHEL9 template. Inside the VM, install and enable 'postgresql-server'."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Configure a custom Route for the web server",
+      "title": "Configure inter-namespace networking and security",
       "sections": [
         {
-          "title": "Customized External Access",
-          "notice": "Expose the 'web-final-svc' service externally at the hostname 'webapp-final.apps.example.com'.",
+          "title": "Services and Network Policies",
+          "notice": "The web app must connect to the database, but no other pods should be able to.",
           "subtasks": [
-            "Create a Route resource that targets the 'web-final-svc' service.",
-            "Set the hostname of the route to 'webapp-final.apps.example.com'.",
-            "Verify the web server is accessible via this custom hostname."
+            "In the 'db-prod' namespace, create a ClusterIP service named 'db-svc' for the 'db-vm' on port 5432.",
+            "In the 'db-prod' namespace, create a NetworkPolicy that allows ingress traffic to 'db-vm' only from pods in the 'webapp-prod' namespace.",
+            "In the 'webapp-prod' namespace, expose the 'webapp-vm' with a NodePort service."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Add a secondary data disk to the web server VM",
+      "title": "Configure persistent storage and disk mounting for the database",
       "sections": [
         {
-          "title": "Add Persistent Storage",
-          "notice": "Add a 15Gi disk for web content.",
+          "title": "Disk Management",
+          "notice": "Add a dedicated disk for PostgreSQL data on 'db-vm'. Perform actions in the 'db-prod' namespace.",
           "subtasks": [
-            "Create a 15Gi PVC named 'web-content-pvc'.",
-            "Add the PVC as a new data volume to the 'web-final-vm'.",
-            "Log into the VM and create a filesystem on the new disk."
+            "Create a 30Gi PVC named 'pg-data-pvc'.",
+            "Attach this PVC as a data volume to the 'db-vm'.",
+            "Log into the 'db-vm' guest OS.",
+            "Create a new logical volume and format it with ext4.",
+            "Mount the filesystem persistently on '/var/lib/pgsql'."
           ]
         }
       ]
     },
     {
       "id": "task04",
-      "title": "Create a snapshot of the web server VM",
+      "title": "Create a custom template from the web server VM",
       "sections": [
         {
-          "title": "State Backup",
-          "notice": "Take a snapshot of 'web-final-vm' before making further changes.",
+          "title": "Template Generation",
+          "notice": "Create a reusable template from the configured 'webapp-vm'. Perform actions in a new 'app-templates' namespace.",
           "subtasks": [
-            "Create a VirtualMachineSnapshot named 'web-final-snapshot' for the VM.",
-            "Wait for the snapshot to be ready to use."
+            "Create a new namespace named 'app-templates'.",
+            "Generate a new template named 'frontend-template' from the 'webapp-vm' in the 'webapp-prod' namespace.",
+            "Modify the template to add a parameter for the application version, to be used as a label on the VM."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Clone the web server VM for a development environment",
+      "title": "Deploy a staging version of the web app from the template",
       "sections": [
         {
-          "title": "Cloning",
-          "notice": "Create a clone named 'web-dev-vm'.",
+          "title": "Template Deployment",
+          "notice": "Use the new template to deploy a staging instance in a new 'webapp-staging' namespace.",
           "subtasks": [
-            "Create a clone of 'web-final-vm'.",
-            "Name the new VM 'web-dev-vm'.",
-            "Verify the new VM starts and is a perfect copy."
+            "Create a new namespace named 'webapp-staging'.",
+            "Deploy a new VM named 'webapp-staging-vm' from the 'frontend-template'.",
+            "Provide 'v1.1-staging' as the application version parameter during deployment."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Configure a secondary network for the development VM",
+      "title": "Perform a snapshot and restore of the staging web server",
       "sections": [
         {
-          "title": "Isolate Development VM",
-          "notice": "Connect 'web-dev-vm' to an isolated bridge network named 'dev-net'.",
+          "title": "Snapshot and Restore",
+          "notice": "Test disaster recovery on the staging VM. Perform actions in the 'webapp-staging' namespace.",
           "subtasks": [
-            "Create a NetworkAttachmentDefinition for a bridge network named 'dev-net'.",
-            "Edit 'web-dev-vm' to add a new network interface.",
-            "Attach the new interface to the 'dev-net' NAD."
+            "Create a snapshot of 'webapp-staging-vm'.",
+            "Delete the VM after the snapshot is complete.",
+            "Restore the VM from the snapshot.",
+            "Verify the VM is running correctly."
           ]
         }
       ]
     },
     {
       "id": "task07",
-      "title": "Create a custom template from the development VM",
+      "title": "Clone the production database for development use",
       "sections": [
         {
-          "title": "Template Generation",
-          "notice": "Create a template named 'dev-webtier-template' from 'web-dev-vm'.",
+          "title": "VM Cloning",
+          "notice": "Create a clone of the production database 'db-vm' for developers in a new 'db-dev' namespace.",
           "subtasks": [
-            "Shut down the 'web-dev-vm'.",
-            "Generate a new template from the VM.",
-            "Ensure the template is named 'dev-webtier-template'."
+            "Create a new namespace named 'db-dev'.",
+            "Create a clone of the 'db-vm' from the 'db-prod' namespace into the 'db-dev' namespace.",
+            "Name the new VM 'db-dev-clone'.",
+            "Verify the clone starts and is functional."
           ]
         }
       ]
     },
     {
       "id": "task08",
-      "title": "Use the new template to deploy a QA VM with cloud-init",
+      "title": "Perform a live migration of the production database",
       "sections": [
         {
-          "title": "Template Deployment and Customization",
-          "notice": "Deploy 'web-qa-vm' and use cloud-init to set its hostname.",
+          "title": "Live Migration",
+          "notice": "The node hosting 'db-vm' needs urgent maintenance. Migrate the VM without downtime.",
           "subtasks": [
-            "Deploy a new VM named 'web-qa-vm' from 'dev-webtier-template'.",
-            "Use cloud-init user data to set the hostname to 'qa.example.com'.",
-            "Verify the VM boots and has the correct hostname."
+            "Initiate a live migration for the 'db-vm' in the 'db-prod' namespace.",
+            "Monitor the migration process to ensure it completes successfully."
           ]
         }
       ]
     },
     {
       "id": "task09",
-      "title": "Perform a live migration of the production web server",
+      "title": "Configure RBAC for a junior web administrator",
       "sections": [
         {
-          "title": "Live Migration",
-          "notice": "Move 'web-final-vm' to a different worker node without downtime.",
+          "title": "User Access Control",
+          "notice": "Create a user 'web-jr-admin' who can only view and restart web app VMs in both 'webapp-prod' and 'webapp-staging' namespaces.",
           "subtasks": [
-            "Initiate a live migration for 'web-final-vm'.",
-            "Monitor the migration and verify it completes successfully.",
-            "Confirm the VM is running on a new node."
+            "Create a user named 'web-jr-admin'.",
+            "Create a ClusterRole that allows 'get', 'list', 'watch' on VirtualMachines, and 'update' on the 'restart' subresource.",
+            "Create RoleBindings in both the 'webapp-prod' and 'webapp-staging' namespaces to grant this ClusterRole to the 'web-jr-admin' user."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Configure a readiness probe for the production web server",
+      "title": "Configure a health probe for the production database VM",
       "sections": [
         {
-          "title": "Health Check",
-          "notice": "Add a readiness probe to 'web-final-vm' to verify httpd is running.",
+          "title": "Liveness Probe",
+          "notice": "Ensure the 'db-vm' is automatically restarted if PostgreSQL is unresponsive. Perform actions in the 'db-prod' namespace.",
           "subtasks": [
-            "Edit the 'web-final-vm' resource.",
-            "Add a readiness probe that performs an HTTP GET request on port 80.",
-            "Verify the VMI enters the 'Ready' state."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task11",
-      "title": "Backup the production web server using OADP",
-      "sections": [
-        {
-          "title": "OADP Backup",
-          "notice": "Perform a full backup of 'web-final-vm'.",
-          "subtasks": [
-            "Ensure the OADP operator is configured.",
-            "Create a 'Backup' resource that includes the 'web-final-vm'.",
-            "Verify the backup operation completes successfully."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task12",
-      "title": "Restore the backup to a new VM",
-      "sections": [
-        {
-          "title": "OADP Restore",
-          "notice": "Restore the backup of 'web-final-vm' to a new VM named 'web-restored-vm'.",
-          "subtasks": [
-            "Create a 'Restore' resource from the backup.",
-            "Configure the restore to change the name of the restored VM to 'web-restored-vm'.",
-            "Verify the new VM is created and functional."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task13",
-      "title": "Prepare a node for maintenance by draining it",
-      "sections": [
-        {
-          "title": "Node Maintenance",
-          "notice": "A worker node needs to be rebooted. Safely drain it of all VMs.",
-          "subtasks": [
-            "Select a worker node running at least one VM.",
-            "Use 'oc adm drain' to gracefully evict all VMs.",
-            "Verify the VMs are migrated to other nodes."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task14",
-      "title": "Configure anti-affinity for a new pair of database VMs",
-      "sections": [
-        {
-          "title": "High Availability Pair",
-          "notice": "Deploy two new database VMs, 'db-a' and 'db-b', and ensure they run on separate nodes.",
-          "subtasks": [
-            "Deploy 'db-a' with the label 'db-pair=ha'.",
-            "Deploy 'db-b' with the same label.",
-            "Add a required pod anti-affinity rule to both VMs to prevent them from co-locating."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task15",
-      "title": "Configure a service to load balance between the new database VMs",
-      "sections": [
-        {
-          "title": "Load Balancing",
-          "notice": "Create a single service that balances traffic across 'db-a' and 'db-b'.",
-          "subtasks": [
-            "Create a ClusterIP service named 'db-ha-svc'.",
-            "Configure a selector that targets both VMs using the 'db-pair=ha' label.",
-            "Verify the service endpoints include the IP addresses of both VMs."
+            "Edit the 'db-vm' VirtualMachine resource.",
+            "Add a liveness probe that performs a TCP socket check on port 5432.",
+            "Set an appropriate initial delay and failure threshold."
           ]
         }
       ]

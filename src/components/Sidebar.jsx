@@ -49,7 +49,7 @@ const Sidebar = ({ startTime }) => {
     <aside className="sidebar">
       <div className="sidebar-header">
         <img 
-          src="https://www.redhat.com/rhdc/managed-files/rh-hat-logo.svg"
+          src="https://www.svgrepo.com/show/354273/redhat-icon.svg"
           alt="Red Hat Logo" 
           className="sidebar-logo" 
         />

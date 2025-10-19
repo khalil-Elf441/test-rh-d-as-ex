@@ -1,4 +1,3 @@
-
 {
   "examId": "ex316-4",
   "title": "OpenShift Virtualization Specialist (EX316) — Mock 4: High Availability and Scheduling",
@@ -11,10 +10,11 @@
       "sections": [
         {
           "title": "Guaranteed Quality of Service",
-          "notice": "A low-latency trading application requires dedicated CPU and memory resources.",
+          "notice": "A low-latency trading application requires dedicated CPU and memory resources. Deploy it in a new 'trading-floor' namespace.",
           "subtasks": [
-            "Create a VM named 'trading-vm'.",
-            "Set the memory and CPU requests equal to the memory and CPU limits.",
+            "Create a new namespace named 'trading-floor'.",
+            "Create a VM named 'trading-vm' in the new namespace.",
+            "Set the memory and CPU requests equal to the memory and CPU limits (e.g., 4Gi memory, 2 CPUs).",
             "Enable the 'dedicatedCpuPlacement' feature for the VM to ensure CPU pinning.",
             "Verify the underlying pod for the VM has the 'Guaranteed' QoS class."
           ]
@@ -27,8 +27,9 @@
       "sections": [
         {
           "title": "Redundant Load Balancers",
-          "notice": "Deploy two load balancer VMs, 'lb-vm-1' and 'lb-vm-2', and ensure they do not run on the same node.",
+          "notice": "Deploy two load balancer VMs in a new 'net-infra' namespace and ensure they do not run on the same node.",
           "subtasks": [
+            "Create a new namespace named 'net-infra'.",
             "Deploy two identical VMs named 'lb-vm-1' and 'lb-vm-2', both with the label 'app=loadbalancer'.",
             "For both VMs, add a required 'podAntiAffinity' rule.",
             "The rule should prevent scheduling on a node if another pod with the label 'app=loadbalancer' is already present."
@@ -38,14 +39,14 @@
     },
     {
       "id": "task03",
-      "title": "Set up a watchdog for the 'trading-vm'",
+      "title": "Set up a watchdog and health probes for the 'trading-vm'",
       "sections": [
         {
-          "title": "VM Health Monitoring",
-          "notice": "The 'trading-vm' must be automatically rebooted if its OS hangs.",
+          "title": "VM Health and Application Monitoring",
+          "notice": "The 'trading-vm' must be highly resilient. Perform actions in the 'trading-floor' namespace.",
           "subtasks": [
-            "Add a watchdog device to the 'trading-vm' definition.",
-            "Configure the watchdog to use the 'i6300esb' device model.",
+            "Add a watchdog device to the 'trading-vm' definition using the 'i6300esb' model.",
+            "Add a liveness probe to the 'trading-vm' that performs a TCP socket check on port 9999.",
             "Log into the VM, install the 'watchdog' package, and ensure the service is running."
           ]
         }
@@ -53,104 +54,75 @@
     },
     {
       "id": "task04",
-      "title": "Configure a liveness probe to check an application within a VM",
+      "title": "Set the eviction strategy and test a node failure",
       "sections": [
         {
-          "title": "Application-Level Health Check",
-          "notice": "The 'trading-vm' runs a service on TCP port 9999. The VM should be restarted if this port is not responding.",
+          "title": "Node Failure Recovery Strategy",
+          "notice": "The load balancer VMs must be live-migrated if their node fails. Perform actions in the 'net-infra' namespace.",
           "subtasks": [
-            "Add a 'livenessProbe' to the 'trading-vm' definition.",
-            "Configure the probe to perform a TCP socket check on port 9999.",
-            "Set the initial delay to 120 seconds and the failure threshold to 5."
+            "Set the 'evictionStrategy' for both 'lb-vm-1' and 'lb-vm-2' to 'LiveMigrateIfPossible'.",
+            "Identify the node where 'lb-vm-1' is running.",
+            "Cordon and drain the node to simulate a graceful shutdown.",
+            "Observe that 'lb-vm-1' is live-migrated to another node."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Set the eviction strategy for the load balancer VMs",
+      "title": "Use taints and tolerations to create a dedicated VM node",
       "sections": [
         {
-          "title": "Node Failure Recovery Strategy",
-          "notice": "The load balancer VMs must be live-migrated to another node if their current node fails but is still responsive.",
+          "title": "Node Tainting and Tolerations",
+          "notice": "A specific node should only be used by virtualization workloads.",
           "subtasks": [
-            "Edit both 'lb-vm-1' and 'lb-vm-2'.",
-            "Set the 'evictionStrategy' for both VMs to 'LiveMigrateIfPossible'."
+            "Add a taint 'workload=virtualization:NoSchedule' to one of your worker nodes.",
+            "Edit the 'trading-vm' in the 'trading-floor' namespace.",
+            "Add a toleration to the VM's specification that matches the taint.",
+            "Verify the VM can be scheduled on the tainted node."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Simulate a node failure and observe VM recovery",
-      "sections": [
-        {
-          "title": "Failure Simulation",
-          "notice": "Test the high availability configuration by simulating a node failure.",
-          "subtasks": [
-            "Identify the node where 'lb-vm-1' is running.",
-            "Cordon and drain the node, simulating a graceful shutdown.",
-            "Observe that 'lb-vm-1' is live-migrated to another node.",
-            "Forcibly shut down the node where 'lb-vm-2' is running and observe its recovery on a new node."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task07",
-      "title": "Use taints and tolerations to dedicate a node for GPU workloads",
-      "sections": [
-        {
-          "title": "Node Tainting and Tolerations",
-          "notice": "A specific node has a GPU and should only be used by VMs that explicitly tolerate it.",
-          "subtasks": [
-            "Add a taint 'gpu=true:NoSchedule' to one of your worker nodes.",
-            "Create a new VM named 'gpu-workload-vm'.",
-            "Add a toleration to the VM's specification that matches the taint.",
-            "Verify the VM successfully schedules on the tainted node."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task08",
       "title": "Configure a custom route to expose a service on a specific path",
       "sections": [
         {
           "title": "Path-Based Routing",
-          "notice": "Expose a service running on 'gpu-workload-vm' via a custom route at path '/gpu-api'.",
+          "notice": "Expose a service running on 'trading-vm' via a custom route at path '/api/trade'. Perform actions in the 'trading-floor' namespace.",
           "subtasks": [
-            "Create a ClusterIP service for 'gpu-workload-vm' on port 8080.",
+            "Create a ClusterIP service for 'trading-vm' on port 8080.",
             "Create a Route resource.",
-            "Configure the route to direct traffic for the path '/gpu-api' to the created service.",
+            "Configure the route to direct traffic for the path '/api/trade' to the created service.",
             "Verify the service is accessible via the route's host and path."
           ]
         }
       ]
     },
     {
-      "id": "task09",
-      "title": "Live migrate a VM with affinity rules",
+      "id": "task07",
+      "title": "Configure RBAC for a junior administrator",
       "sections": [
         {
-          "title": "Constrained Live Migration",
-          "notice": "The 'trading-vm' has strict node affinity. Test that live migration respects these rules.",
+          "title": "Least Privilege Access Control",
+          "notice": "Create a user 'jr-admin' who can only start and stop VMs in the 'trading-floor' namespace.",
           "subtasks": [
-            "Ensure 'trading-vm' is pinned to a specific node using a node selector.",
-            "Attempt to live migrate the VM to a different, non-matching node. This should fail.",
-            "Modify the node affinity rules to allow a second node.",
-            "Successfully live migrate the VM to the newly allowed node."
+            "Create a user named 'jr-admin'.",
+            "Create a Role in the 'trading-floor' namespace.",
+            "The role should grant permissions to 'get', 'list', and 'update' VirtualMachines, but only for the 'start' and 'stop' subresources.",
+            "Bind this Role to the 'jr-admin' user."
           ]
         }
       ]
     },
     {
-      "id": "task10",
+      "id": "task08",
       "title": "Clone a VM's disk for backup using DataVolumes",
       "sections": [
         {
           "title": "Manual Disk Backup",
-          "notice": "Create a point-in-time copy of the 'trading-vm's' primary disk without using OADP.",
+          "notice": "Create a point-in-time copy of the 'trading-vm's' primary disk. Perform actions in the 'trading-floor' namespace.",
           "subtasks": [
             "Identify the PVC associated with the 'trading-vm's' root disk.",
             "Create a new DataVolume resource named 'trading-disk-clone'.",
@@ -161,62 +133,15 @@
       ]
     },
     {
-      "id": "task11",
-      "title": "Configure different users with different levels of access",
-      "sections": [
-        {
-          "title": "Role-Based Access Control (RBAC)",
-          "notice": "Create a user 'viewer' who can only see VMs and a user 'editor' who can start/stop them.",
-          "subtasks": [
-            "Create two new users, 'viewer' and 'editor'.",
-            "Assign the default 'view' role to the 'viewer' user for your project.",
-            "Assign the 'edit' role to the 'editor' user for your project.",
-            "Log in as each user and verify their permissions on virtual machine resources."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task12",
-      "title": "Update the OpenShift Virtualization Operator",
-      "sections": [
-        {
-          "title": "Operator Update",
-          "notice": "Perform a manual update of the OpenShift Virtualization Operator to a newer version.",
-          "subtasks": [
-            "Examine the Operator's subscription details.",
-            "If an upgrade is available, approve the installation plan.",
-            "Monitor the upgrade process and ensure all virtualization components are updated without errors."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task13",
-      "title": "Use cloud-init to run arbitrary commands on boot",
-      "sections": [
-        {
-          "title": "Custom Boot Commands",
-          "notice": "Deploy a VM that writes a file to /tmp on its first boot.",
-          "subtasks": [
-            "Create a new VM from a generic template.",
-            "Use cloud-init user data.",
-            "Add a 'runcmd' block that executes 'echo hello-world > /tmp/cloud-init-test.txt'.",
-            "Boot the VM and verify the file exists with the correct content."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task14",
+      "id": "task09",
       "title": "Configure a VM to have affinity to a specific geographical region",
       "sections": [
         {
           "title": "Preferred Node Affinity",
-          "notice": "A VM should prefer to run on nodes in the 'east' region, but can run elsewhere if no such nodes are available.",
+          "notice": "The 'trading-vm' should prefer to run on nodes in the 'east' region, but can run elsewhere if no such nodes are available.",
           "subtasks": [
             "Label at least one worker node with 'region=east'.",
-            "Create a new VM.",
+            "Edit the 'trading-vm' resource.",
             "Add a 'nodeAffinity' rule to the VM.",
             "Configure a 'preferredDuringSchedulingIgnoredDuringExecution' rule that gives a high weight to nodes with the 'region=east' label."
           ]
@@ -224,13 +149,14 @@
       ]
     },
     {
-      "id": "task15",
+      "id": "task10",
       "title": "Troubleshoot a VM that fails to start due to resource constraints",
       "sections": [
         {
           "title": "Debugging Scheduling Failures",
-          "notice": "A VM is stuck in a 'Pending' state. Diagnose and fix the issue.",
+          "notice": "A VM is stuck in a 'Pending' state. Diagnose and fix the issue in a new 'test-lab' namespace.",
           "subtasks": [
+            "Create a new namespace named 'test-lab'.",
             "Create a new VM that requests an impossible amount of memory (e.g., 1000Gi).",
             "Observe that the VM fails to schedule.",
             "Use 'oc describe' on the VMI or its pod to see events related to scheduling failure.",

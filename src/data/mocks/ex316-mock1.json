@@ -1,250 +1,167 @@
 
 {
   "examId": "ex316-1",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 1: Core Skills",
-  "description": "This exam focuses on core skills including Operator deployment, VM provisioning, and basic network and storage configuration.",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 1: Comprehensive Skills Assessment",
+  "description": "A comprehensive exam covering a wide range of objectives including deployment, networking, storage, and VM lifecycle management.",
   "timeLimit": "4 hours",
   "tasks": [
     {
       "id": "task01",
-      "title": "Deploy the OpenShift Virtualization Operator",
+      "title": "Deploy and configure a multi-homed database server",
       "sections": [
         {
-          "title": "Operator Installation",
-          "notice": "Deploy the Operator using OLM into the recommended default namespace.",
+          "title": "Namespace and VM Provisioning",
+          "notice": "Perform all actions for this task in a new namespace named 'db-prod'.",
           "subtasks": [
-            "Find and install the 'OpenShift Virtualization' Operator from OperatorHub.",
-            "Ensure the installation targets the 'openshift-cnv' namespace.",
-            "Wait for the Operator installation to succeed."
-          ]
-        },
-        {
-          "title": "Activate Virtualization Components",
-          "notice": "Create the necessary Custom Resource to enable virtualization features on the cluster.",
-          "subtasks": [
-            "Create a 'HyperConverged' custom resource in the 'openshift-cnv' namespace.",
-            "Accept all the default settings for the HyperConverged resource.",
-            "Verify that all pods related to OpenShift Virtualization are running correctly before proceeding."
+            "Create a new namespace named 'db-prod'.",
+            "Create a NetworkAttachmentDefinition named 'storage-net' in the 'db-prod' namespace for a linux-bridge network.",
+            "Provision a new VM named 'db-server' from the RHEL9 template in the 'db-prod' namespace.",
+            "Customize the VM to have 2 CPUs and 4Gi of memory.",
+            "Attach 'db-server' to the 'storage-net' NAD as a secondary network interface.",
+            "Inside the guest OS, install the 'mariadb-server' package and enable the service to start on boot."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Provision a RHEL9 VM for a database server",
+      "title": "Configure tiered storage for the database server",
       "sections": [
         {
-          "title": "VM Creation from Template",
-          "notice": "Use the official RHEL9 template to create a new VM named 'db-vm'.",
+          "title": "Disk and Volume Management",
+          "notice": "The database requires separate disks for data and logs. Perform all actions in the 'db-prod' namespace.",
           "subtasks": [
-            "Find the common template for Red Hat Enterprise Linux 9.",
-            "Provision a new VirtualMachine named 'db-vm' from this template.",
-            "Customize the VM to have 2 CPUs and 3Gi of memory.",
-            "Ensure the VM uses a disk of size 25Gi."
+            "Create a 20Gi PVC named 'db-data-disk' using a fast, block-mode capable StorageClass.",
+            "Create a 10Gi PVC named 'db-log-disk' using a standard, filesystem-mode StorageClass.",
+            "Attach both PVCs to the 'db-server' VM as distinct data volumes.",
+            "Log into the 'db-server' guest OS.",
+            "Create an XFS filesystem on the log disk.",
+            "Mount the log disk filesystem persistently on '/var/log/mariadb'."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Perform basic system administration on 'db-vm'",
+      "title": "Expose the database and configure access control",
       "sections": [
         {
-          "title": "Package Installation and Service Management",
-          "notice": "Access the VM and install and enable a database service.",
+          "title": "Service, Route, and RBAC Configuration",
+          "notice": "Make the database accessible and restrict user permissions. Perform all actions in the 'db-prod' namespace.",
           "subtasks": [
-            "Access the serial console of 'db-vm'.",
-            "Install the 'mariadb-server' package using DNF.",
-            "Enable the 'mariadb' service to start at boot time.",
-            "Start the 'mariadb' service."
+            "Create a ClusterIP service named 'db-internal-svc' to expose port 3306 of the 'db-server' VM.",
+            "Create a user named 'db-viewer'.",
+            "Create a new Role named 'vm-viewer-role' in the 'db-prod' namespace that only allows 'get', 'list', and 'watch' verbs on VirtualMachine resources.",
+            "Bind the 'vm-viewer-role' to the 'db-viewer' user using a RoleBinding."
           ]
         }
       ]
     },
     {
       "id": "task04",
-      "title": "Configure a Kubernetes Service for the database VM",
+      "title": "Create a custom template with cloud-init",
       "sections": [
         {
-          "title": "Expose VM via ClusterIP Service",
-          "notice": "Make the MariaDB service on 'db-vm' available to other pods in the cluster.",
+          "title": "Template Generation and Customization",
+          "notice": "Create a generic web server template. Perform all actions in a new namespace named 'templates'.",
           "subtasks": [
-            "Create a Service named 'db-service' of type ClusterIP.",
-            "Configure the service to select the 'db-vm' virtual machine.",
-            "Forward traffic from the service on port 3306 to the VM's port 3306."
+            "Create a new namespace named 'templates'.",
+            "Create a new VM template named 'web-server-template'.",
+            "Configure the template to use cloud-init to install 'nginx' and create a user 'webadmin' with sudo access.",
+            "Add a parameter to the template to allow specifying the VM name at deployment."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Provision a web server VM with cloud-init customization",
+      "title": "Deploy and secure a web server from the custom template",
       "sections": [
         {
-          "title": "VM Provisioning with Cloud-Init",
-          "notice": "Deploy a VM named 'web-vm' and use cloud-init to pre-configure it.",
+          "title": "VM Deployment and Network Policy",
+          "notice": "Deploy a web server and ensure it can connect to the database. Perform all actions in a new namespace named 'web-prod'.",
           "subtasks": [
-            "Create a new VM named 'web-vm' from the RHEL9 template.",
-            "Use cloud-init user data to set the hostname to 'web-vm.example.com'.",
-            "Use cloud-init to install the 'nginx' package.",
-            "Use cloud-init to enable and start the 'nginx' service."
+            "Create a new namespace named 'web-prod'.",
+            "Deploy a new VM named 'web-server-1' from the 'web-server-template' located in the 'templates' namespace.",
+            "Create a NetworkPolicy that allows 'web-server-1' to connect to the 'db-internal-svc' in the 'db-prod' namespace on port 3306."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Create a NetworkPolicy for the database VM",
+      "title": "Backup and restore the web server VM",
       "sections": [
         {
-          "title": "Secure VM with Network Policy",
-          "notice": "Create a policy that only allows traffic to 'db-vm' from 'web-vm'.",
+          "title": "OADP Backup and Restore",
+          "notice": "Use OADP to protect and recover the web server. Perform all actions in the 'web-prod' namespace.",
           "subtasks": [
-            "Ensure both 'db-vm' and 'web-vm' have appropriate labels (e.g., 'app=db' and 'app=web').",
-            "Create a NetworkPolicy named 'db-access-policy'.",
-            "The policy should apply to pods with the 'app=db' label.",
-            "Define an ingress rule that allows traffic on port 3306 only from pods with the 'app=web' label."
+            "Ensure the OADP operator is functional.",
+            "Create a 'Backup' of the 'web-server-1' VM.",
+            "After the backup completes, delete the 'web-server-1' VM and its associated PVCs.",
+            "Create a 'Restore' from the backup to recover the VM.",
+            "Verify the VM is restored and functional."
           ]
         }
       ]
     },
     {
       "id": "task07",
-      "title": "Attach a new persistent disk to 'db-vm'",
+      "title": "Perform a live migration and node maintenance",
       "sections": [
         {
-          "title": "Add and Configure Persistent Storage",
-          "notice": "Add a 10Gi disk to the database VM for storing data.",
+          "title": "Live Migration and Node Drain",
+          "notice": "A worker node needs to be updated. Safely migrate the 'db-server' VM off it.",
           "subtasks": [
-            "Create a new PersistentVolumeClaim named 'db-data-pvc' with a size of 10Gi.",
-            "Ensure the PVC uses a StorageClass that supports ReadWriteOnce (RWO) access.",
-            "Add the new PVC as a data volume to the 'db-vm' VirtualMachine.",
-            "Verify the new disk is visible as a block device inside the VM."
+            "Identify the node where 'db-server' is running.",
+            "Initiate a live migration for the 'db-server' VM to any other available worker node.",
+            "Once the migration is complete, prepare the original node for maintenance by tainting and draining it.",
+            "Verify no VMs are running on the drained node."
           ]
         }
       ]
     },
     {
       "id": "task08",
-      "title": "Detach a disk from 'web-vm'",
+      "title": "Clone a VM's disk for offline analysis",
       "sections": [
         {
-          "title": "Modify VM Storage",
-          "notice": "The 'web-vm' was created with an extra, unnecessary disk. Remove it.",
+          "title": "DataVolume Cloning",
+          "notice": "Create a copy of the 'db-data-disk' PVC. Perform all actions in the 'db-prod' namespace.",
           "subtasks": [
-            "First, add a new 5Gi data volume to 'web-vm' named 'extra-disk'.",
-            "After the disk is added, shut down the 'web-vm'.",
-            "Remove the 'extra-disk' data volume from the 'web-vm' definition.",
-            "Start the VM and verify the disk has been removed."
+            "Create a new DataVolume named 'db-data-clone-dv'.",
+            "Configure the source of the DataVolume to be the 'db-data-disk' PVC.",
+            "Verify a new PVC is created containing a clone of the data."
           ]
         }
       ]
     },
     {
       "id": "task09",
-      "title": "Create a snapshot of the 'web-vm'",
+      "title": "Configure a health probe for the web server",
       "sections": [
         {
-          "title": "VM Snapshot",
-          "notice": "Take a snapshot of the 'web-vm' before applying updates.",
+          "title": "Readiness Probe",
+          "notice": "Ensure the 'web-server-1' only receives traffic when Nginx is responsive. Perform actions in the 'web-prod' namespace.",
           "subtasks": [
-            "Create a VirtualMachineSnapshot resource named 'web-vm-snapshot-v1'.",
-            "Ensure the snapshot targets the 'web-vm' VM.",
-            "Wait for the snapshot operation to complete and for the 'readyToUse' status to be true."
+            "Edit the 'web-server-1' VirtualMachine resource.",
+            "Add a readiness probe that performs an HTTP GET request on port 80.",
+            "Set the initial delay to 60 seconds and a period of 10 seconds."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Restore 'web-vm' from its snapshot",
+      "title": "Create and restore a VM snapshot",
       "sections": [
         {
-          "title": "VM Restore",
-          "notice": "A faulty update was applied to 'web-vm'. Revert it to its previous state.",
+          "title": "Snapshot and Restore",
+          "notice": "Take a snapshot of the 'db-server' and revert it. Perform actions in the 'db-prod' namespace.",
           "subtasks": [
-            "Create a VirtualMachineRestore resource named 'web-vm-restore-v1'.",
-            "Configure the restore to use the 'web-vm-snapshot-v1' as its source.",
-            "Verify the VM is reverted to its previous state."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task11",
-      "title": "Clone the 'db-vm' for a new staging environment",
-      "sections": [
-        {
-          "title": "VM Cloning",
-          "notice": "Create a full clone of the database VM named 'db-vm-staging'.",
-          "subtasks": [
-            "Prepare the 'db-vm' for cloning if necessary.",
-            "Create a clone of 'db-vm' using the OpenShift web console or CLI.",
-            "Name the new VM 'db-vm-staging'.",
-            "Verify the clone is created and starts successfully."
-          ]
-        }
-      ]
-    },
-    {
-      "id": 'task12',
-      "title": "Configure a NodePort service for the web server",
-      "sections": [
-        {
-          "title": "External Access via NodePort",
-          "notice": "Expose the 'web-vm' externally using a NodePort service.",
-          "subtasks": [
-            "Create a new Service named 'web-svc-external'.",
-            "Set the service type to NodePort.",
-            "Select the 'web-vm' and map service port 8080 to the VM's Nginx port 80.",
-            "Identify the assigned NodePort and verify you can access the web server from outside the cluster."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task13",
-      "title": "Configure a health probe for 'web-vm'",
-      "sections": [
-        {
-          "title": "Liveness Probe",
-          "notice": "Ensure the 'web-vm' is automatically restarted if its web server crashes.",
-          "subtasks": [
-            "Edit the 'web-vm' VirtualMachine resource.",
-            "Add a liveness probe to the VM definition.",
-            "Configure the probe to perform an HTTP GET request on port 80.",
-            "Set an appropriate initial delay and failure threshold."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task14",
-      "title": "Use a custom template to deploy a VM",
-      "sections": [
-        {
-          "title": "Generate and Use a Custom Template",
-          "notice": "Generate a template from 'web-vm' and use it to deploy another VM.",
-          "subtasks": [
-            "Generate a custom template named 'nginx-template' from the configured 'web-vm'.",
-            "Modify the template to allow the VM name to be customized via a parameter.",
-            "Use the new 'nginx-template' to provision a new VM named 'web-vm-2'."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task15",
-      "title": "Assign 'web-vm-2' to a specific node",
-      "sections": [
-        {
-          "title": "Node Affinity",
-          "notice": "Ensure the 'web-vm-2' only runs on a worker node with a specific label.",
-          "subtasks": [
-            "Select a worker node and add a label 'region=primary' to it.",
-            "Edit the 'web-vm-2' VirtualMachine resource.",
-            "Add a node selector to the VM spec that targets the 'region=primary' label.",
-            "Verify the VM is scheduled and running on the correct node."
+            "Create a snapshot of the 'db-server' VM.",
+            "After the snapshot is complete, log into the VM and delete a critical file.",
+            "Restore the VM from the snapshot to recover the deleted file."
           ]
         }
       ]

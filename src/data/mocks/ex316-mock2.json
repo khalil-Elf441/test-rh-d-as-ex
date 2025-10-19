@@ -1,241 +1,162 @@
-
 {
   "examId": "ex316-2",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 2: Advanced Networking and Migration",
-  "description": "This exam tests advanced networking using Multus, node maintenance, and both cold and live migrations.",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 2: Advanced Migration and High Availability",
+  "description": "This exam focuses on migrating VMs from external hypervisors, ensuring high availability, and advanced networking.",
   "timeLimit": "4 hours",
   "tasks": [
     {
       "id": "task01",
-      "title": "Configure the NMState Operator for node network management",
+      "title": "Migrate a VM from VMware vSphere",
       "sections": [
         {
-          "title": "Operator Installation",
-          "notice": "The NMState Operator is required to manage node network configurations declaratively.",
+          "title": "Migration Toolkit for Virtualization Setup",
+          "notice": "You will migrate a VM from a simulated vSphere environment. First, configure the provider in a new namespace called 'vm-migration'.",
           "subtasks": [
-            "Install the 'NMState' Operator from OperatorHub.",
-            "Verify the operator pods are running in the 'openshift-nmstate' namespace."
+            "Create a new namespace named 'vm-migration'.",
+            "Install the 'Migration Toolkit for Virtualization' Operator.",
+            "In the 'vm-migration' namespace, create a secret named 'vsphere-secret' containing the credentials for a mock vCenter server.",
+            "Create a 'Provider' resource for VMware, referencing the secret, and verify the connection is successful."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Create a Linux bridge on all worker nodes using NMState",
+      "title": "Plan and execute the vSphere VM migration",
       "sections": [
         {
-          "title": "Node Network Configuration",
-          "notice": "Create a bridge named 'br1' to be used for a secondary VM network.",
+          "title": "Migration Plan and Execution",
+          "notice": "Migrate the VM named 'legacy-web-app' to the 'vm-migration' namespace.",
           "subtasks": [
-            "Create a 'NodeNetworkConfigurationPolicy' (NNCP) resource.",
-            "Define the desired state to have a linux-bridge interface named 'br1'.",
-            "Apply the policy to all worker nodes using a node selector.",
-            "Verify on a worker node that the 'br1' bridge has been created."
+            "Create a 'Plan' resource in the 'vm-migration' namespace.",
+            "Map the source vSphere network to the default OpenShift pod network.",
+            "Map the source vSphere datastore to the default OpenShift Container Storage class.",
+            "Select the 'legacy-web-app' VM from the source provider inventory for migration.",
+            "Create a 'Migration' resource to execute the plan.",
+            "Monitor the migration until it succeeds and the new VM is running in OpenShift."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Create a secondary network attachment for the new bridge",
+      "title": "Configure networking and expose the migrated VM",
       "sections": [
         {
-          "title": "Multus NAD Configuration",
-          "notice": "Create a NetworkAttachmentDefinition for VMs to connect to the 'br1' bridge.",
+          "title": "Service and Route Configuration",
+          "notice": "The migrated 'legacy-web-app' VM runs a service on port 8080. Expose it externally.",
           "subtasks": [
-            "Create a new NetworkAttachmentDefinition named 'br1-net'.",
-            "Configure the NAD to use the 'cnv-bridge' CNI plugin.",
-            "Specify 'br1' as the bridge name in the NAD configuration."
+            "Create a NodePort service named 'legacy-webapp-svc' that exposes port 8080 on the VM.",
+            "Verify the service is accessible via its assigned NodePort from all cluster nodes."
           ]
         }
       ]
     },
     {
       "id": "task04",
-      "title": "Deploy a multi-homed VM connected to the default and br1 networks",
+      "title": "Deploy a highly available pair of database VMs",
       "sections": [
         {
-          "title": "VM with Multiple Interfaces",
-          "notice": "Deploy a VM named 'firewall-vm' that is connected to both the pod network and the 'br1-net'.",
+          "title": "VM Deployment and Anti-Affinity",
+          "notice": "Deploy two database VMs that must never run on the same physical node. Perform all actions in a new namespace named 'ha-db'.",
           "subtasks": [
-            "Create a new VM named 'firewall-vm'.",
-            "Configure its primary interface to use the default pod network.",
-            "Add a secondary network interface and attach it to the 'br1-net' NAD.",
-            "Verify the VM starts and has two network interfaces (eth0 and eth1)."
+            "Create a new namespace named 'ha-db'.",
+            "Deploy a VM named 'db-main' with the label 'db-cluster=main'.",
+            "Deploy a second VM named 'db-replica' with the same label.",
+            "Add a required 'podAntiAffinity' rule to both VMs to prevent them from being scheduled on the same node based on the 'db-cluster=main' label.",
+            "Verify the two VMs are running on different worker nodes."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Prepare a node for maintenance",
+      "title": "Configure shared storage for the database VMs",
       "sections": [
         {
-          "title": "Node Preparation",
-          "notice": "You must perform a kernel upgrade on a worker node. Prepare it for maintenance by preventing new workloads from being scheduled.",
+          "title": "ReadWriteMany (RWX) Volume Configuration",
+          "notice": "The database VMs need to share a volume for replication logs. Perform all actions in the 'ha-db' namespace.",
           "subtasks": [
-            "Choose a worker node that is currently running at least one VM.",
-            "Add a taint to the node to prevent new pods from being scheduled.",
-            "Set the 'kubevirt.io/schedulable' label on the node to 'false'."
+            "Create a PVC named 'db-repl-logs' with 'ReadWriteMany' access mode and a size of 5Gi.",
+            "Ensure you select a StorageClass that supports RWX volumes.",
+            "Attach the 'db-repl-logs' PVC as a data volume to both the 'db-main' and 'db-replica' VMs."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Drain the node to safely migrate all virtual machines",
+      "title": "Configure RBAC for the database administrators",
       "sections": [
         {
-          "title": "Node Draining",
-          "notice": "All VMs must be live-migrated off the node with no downtime.",
+          "title": "User and Role Management",
+          "notice": "Create a user 'db-admin' who has full control over VMs only in the 'ha-db' namespace.",
           "subtasks": [
-            "Ensure the VMs running on the node are configured with a live migration eviction strategy.",
-            "Use 'oc adm drain' to gracefully evict all pods from the node.",
-            "Monitor the migration process to ensure all VMs are successfully moved to other nodes.",
-            "Verify the node shows a 'SchedulingDisabled' status and is empty."
+            "Create a user named 'db-admin'.",
+            "Create a Role in the 'ha-db' namespace that grants all verbs ('*') on 'virtualmachines', 'virtualmachineinstances', and 'datavolumes' resources.",
+            "Create a RoleBinding to bind this new role to the 'db-admin' user within the 'ha-db' namespace."
           ]
         }
       ]
     },
     {
       "id": "task07",
-      "title": "Perform maintenance and bring the node back into service",
+      "title": "Perform node maintenance on a database node",
       "sections": [
         {
-          "title": "Return to Service",
-          "notice": "After maintenance is complete, make the node available for scheduling again.",
+          "title": "Node Drain and Eviction Strategy",
+          "notice": "One of the database VMs must be live-migrated when its node is drained for maintenance.",
           "subtasks": [
-            "Use 'oc adm uncordon' to make the node schedulable again.",
-            "Remove the taint that was previously applied.",
-            "Remove the 'kubevirt.io/schedulable=false' label."
+            "Identify the node where the 'db-main' VM is running.",
+            "Edit the 'db-main' VM and set its 'evictionStrategy' to 'LiveMigrate'.",
+            "Drain the identified node, making sure to use flags that respect PodDisruptionBudgets and gracefully handle workloads.",
+            "Verify that 'db-main' was successfully live-migrated to another node."
           ]
         }
       ]
     },
     {
       "id": "task08",
-      "title": "Migrate a VM from a VMware vSphere environment",
+      "title": "Configure a watchdog device for the database VMs",
       "sections": [
         {
-          "title": "Migration Toolkit for Virtualization Setup",
-          "notice": "Configure the Migration Toolkit for Virtualization to connect to a vSphere instance.",
+          "title": "VM Health and Responsiveness",
+          "notice": "Ensure the database VMs will reboot if the guest OS hangs. Perform actions in the 'ha-db' namespace.",
           "subtasks": [
-            "Install the 'Migration Toolkit for Virtualization' Operator.",
-            "Create a secret containing the credentials for the vSphere vCenter.",
-            "Create a 'Provider' resource for VMware, referencing the secret.",
-            "Verify the connection to the provider is successful."
+            "Add a watchdog device to both 'db-main' and 'db-replica' VMs.",
+            "Configure the watchdog to use the 'i6300esb' model.",
+            "Log into one of the VMs and ensure the watchdog kernel module is loaded."
           ]
         }
       ]
     },
     {
       "id": "task09",
-      "title": "Create and execute a migration plan for a VMware VM",
+      "title": "Import an Open Virtual Appliance (OVA) image",
       "sections": [
         {
-          "title": "Plan and Migrate",
-          "notice": "Migrate a specific VM named 'legacy-app-vm' from vSphere to OpenShift Virtualization.",
+          "title": "OVA Import",
+          "notice": "A vendor has provided a firewall appliance as an OVA file hosted at http://example.com/firewall.ova. Import it into a new namespace 'security'.",
           "subtasks": [
-            "Create a 'Plan' resource.",
-            "Map the source vSphere network and datastore to a target OpenShift network and StorageClass.",
-            "Select the 'legacy-app-vm' from the source provider inventory.",
-            "Create a 'Migration' resource to execute the plan and monitor it to completion."
+            "Create a new namespace named 'security'.",
+            "Create a DataVolume in the 'security' namespace configured to import from the OVA URL.",
+            "The import process should create a VM named 'firewall-appliance'. Verify its creation."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Configure the imported VM for external access",
-      "sections": [
-        {
-          "title": "Post-Migration Networking",
-          "notice": "The newly migrated 'legacy-app-vm' needs to be accessible from outside the cluster.",
-          "subtasks": [
-            "Verify the VM is running successfully after migration.",
-            "Create a 'Route' to expose a web service running on the VM.",
-            "Ensure the Route correctly targets the VM's service and port.",
-            "Access the VM using the host generated by the Route."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task11",
-      "title": "Configure a VM with affinity for a specific set of nodes",
-      "sections": [
-        {
-          "title": "Node Affinity",
-          "notice": "A high-performance VM must only run on nodes that have fast SSD storage.",
-          "subtasks": [
-            "Add a label 'storage=ssd' to two of your worker nodes.",
-            "Create a new VM named 'compute-vm'.",
-            "Configure a 'nodeAffinity' rule for the VM.",
-            "The rule should require the VM to be scheduled on a node with the 'storage=ssd' label."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task12",
-      "title": "Configure a VM with anti-affinity to another VM",
-      "sections": [
-        {
-          "title": "Pod Anti-Affinity for High Availability",
-          "notice": "Create a primary/replica database pair and ensure they never run on the same node.",
-          "subtasks": [
-            "Create a VM named 'db-primary' with the label 'db-role=primary'.",
-            "Create a second VM named 'db-replica'.",
-            "Configure 'db-replica' with a 'podAntiAffinity' rule.",
-            "The rule must have a 'requiredDuringSchedulingIgnoredDuringExecution' policy to prevent it from running on a node that already has a pod with the 'db-role=primary' label."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task13",
       "title": "Cancel a running live migration",
       "sections": [
         {
           "title": "Migration Management",
-          "notice": "An operator has accidentally started a live migration for a non-migratable VM. Cancel it.",
+          "notice": "A live migration for 'db-replica' was started by mistake. Cancel it before it completes.",
           "subtasks": [
-            "Start a live migration for the 'compute-vm'.",
-            "While the migration is in the 'Running' state, identify the 'VirtualMachineInstanceMigration' object.",
-            "Delete the 'VirtualMachineInstanceMigration' object to cancel the migration.",
-            "Verify the VM remains on its original node."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task14",
-      "title": "Configure a watchdog device for a VM",
-      "sections": [
-        {
-          "title": "Application Health Monitoring",
-          "notice": "Add a watchdog device to a critical VM to ensure it reboots if the OS becomes unresponsive.",
-          "subtasks": [
-            "Edit the 'db-primary' VirtualMachine resource.",
-            "Add a watchdog device to the VM's device list.",
-            "Configure the watchdog to use the 'i6300esb' model.",
-            "Inside the guest OS, ensure the watchdog service is installed and running."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task15",
-      "title": "Determine the eviction strategy for a cluster node loss",
-      "sections": [
-        {
-          "title": "Failure Planning",
-          "notice": "A VM is running critical services and must be recovered on another node if its current node fails.",
-          "subtasks": [
-            "Create a new VM named 'critical-svc-vm'.",
-            "Ensure the VM is using a storage class that supports RWX access mode, or that it can be force-detached.",
-            "Edit the VM and set its 'evictionStrategy' to 'LiveMigrateIfPossible'.",
-            "Explain what will happen to this VM if its node has an unrecoverable failure (it will be recreated on a new node)."
+            "Start a live migration for the 'db-replica' VM.",
+            "Quickly identify the 'VirtualMachineInstanceMigration' (VMIM) object associated with the migration.",
+            "Delete the VMIM object to cancel the migration process.",
+            "Verify the 'db-replica' VM is still running on its original node."
           ]
         }
       ]

@@ -1,4 +1,3 @@
-
 {
   "examId": "ex316-3",
   "title": "OpenShift Virtualization Specialist (EX316) — Mock 3: Storage, Templates, and Recovery",
@@ -11,10 +10,10 @@
       "sections": [
         {
           "title": "Operator Installation and Configuration",
-          "notice": "The OADP Operator is required for all backup and restore tasks.",
+          "notice": "The OADP Operator is required for all backup and restore tasks. Perform all actions in the 'openshift-adp' namespace.",
           "subtasks": [
             "Install the 'OADP Operator for OpenShift Virtualization' from OperatorHub.",
-            "Create a 'DataProtectionApplication' (DPA) resource in the 'openshift-adp' namespace.",
+            "Create a 'DataProtectionApplication' (DPA) resource.",
             "Configure the DPA to use a pre-existing S3-compatible object storage location for backups.",
             "Verify all operator pods are running and the DPA is reconciled."
           ]
@@ -27,12 +26,14 @@
       "sections": [
         {
           "title": "Tiered Storage Provisioning",
-          "notice": "Deploy a VM named 'app-server' with its OS on a fast storage class and logs on a slower one.",
+          "notice": "Deploy a VM in a new namespace 'app-tier'. The VM requires its OS on a fast disk and logs on a slower one.",
           "subtasks": [
+            "Create a new namespace named 'app-tier'.",
             "Create a 20Gi PVC named 'app-os-disk' using a fast, SSD-based StorageClass.",
             "Create a 50Gi PVC named 'app-log-disk' using a slow, HDD-based StorageClass.",
-            "Create a new VM named 'app-server', using the 'app-os-disk' for its boot volume.",
-            "Attach the 'app-log-disk' as a secondary data volume."
+            "Create a new VM named 'app-server' in the 'app-tier' namespace, using the 'app-os-disk' for its boot volume.",
+            "Attach the 'app-log-disk' as a secondary data volume.",
+            "Inside the guest OS, format the log disk and mount it persistently."
           ]
         }
       ]
@@ -43,10 +44,10 @@
       "sections": [
         {
           "title": "OADP Backup",
-          "notice": "Create a complete, application-consistent backup of the multi-disk 'app-server' VM.",
+          "notice": "Create a complete, application-consistent backup of the multi-disk 'app-server' VM. Perform all actions in the 'openshift-adp' namespace.",
           "subtasks": [
             "Create a 'Backup' resource named 'app-server-backup'.",
-            "Configure the backup to include the namespace containing 'app-server'.",
+            "Configure the backup to include the 'app-tier' namespace.",
             "Ensure both snapshots and data movement are enabled for a complete backup.",
             "Monitor the backup until its phase is 'Completed' and check for any errors."
           ]
@@ -59,12 +60,12 @@
       "sections": [
         {
           "title": "OADP Restore",
-          "notice": "The 'app-server' VM and its PVCs have been accidentally deleted. Restore them from the backup.",
+          "notice": "The 'app-tier' namespace has been accidentally deleted. Restore the VM from backup.",
           "subtasks": [
-            "Delete the 'app-server' VM, its DataVolumes, and its PVCs.",
+            "Delete the 'app-tier' namespace entirely.",
             "Create a 'Restore' resource named 'app-server-restore' from the 'app-server-backup'.",
-            "Ensure the restore operation recreates the VM and its associated storage resources.",
-            "Verify the restored VM starts and is functional."
+            "Ensure the restore operation recreates the namespace, the VM, and its associated storage resources.",
+            "Verify the restored VM starts and is functional in the recreated 'app-tier' namespace."
           ]
         }
       ]
@@ -75,8 +76,9 @@
       "sections": [
         {
           "title": "Template Customization with Cloud-Init",
-          "notice": "Create a template that configures a static IP address on its primary network interface upon first boot.",
+          "notice": "Create a template in a new 'golden-templates' namespace that configures a static IP address on its primary network interface.",
           "subtasks": [
+            "Create a new namespace named 'golden-templates'.",
             "Create a new template named 'rhel9-static-ip'.",
             "In the template, include a 'cloudInitNoCloud' data source.",
             "Provide 'networkData' to configure the eth0 interface with a static IP address (e.g., 10.1.2.100/24) and a gateway.",
@@ -91,11 +93,12 @@
       "sections": [
         {
           "title": "Template Generation",
-          "notice": "An application team has fully configured a VM named 'golden-image-vm'. Create a template from it without shutting it down.",
+          "notice": "An application team has fully configured a VM named 'golden-image-vm'. Create a template from it without shutting it down. Perform actions in the 'golden-templates' namespace.",
           "subtasks": [
+            "Deploy a VM named 'golden-image-vm' for this purpose.",
             "Ensure the 'golden-image-vm' is using a storage class that supports snapshots.",
             "Use the web console or CLI to generate a new template named 'golden-template' from the running VM.",
-            "Review the generated template and note that it references the source PVCs."
+            "Review the generated template."
           ]
         }
       ]
@@ -106,7 +109,7 @@
       "sections": [
         {
           "title": "Template Parameterization",
-          "notice": "The generated template is not generic. Modify it to allow customization at deployment time.",
+          "notice": "The generated template is not generic. Modify it to allow customization at deployment time. Perform actions in the 'golden-templates' namespace.",
           "subtasks": [
             "Edit the 'golden-template'.",
             "Add parameters for the VM name, memory, and CPU count.",
@@ -118,126 +121,47 @@
     },
     {
       "id": "task08",
-      "title": "Connect a VM to external storage using Multus",
+      "title": "Configure RBAC for template management",
       "sections": [
         {
-          "title": "External Storage Access",
-          "notice": "A VM requires access to an iSCSI LUN on an external storage network.",
+          "title": "Template User Permissions",
+          "notice": "Create a user 'template-manager' who can manage templates in the 'golden-templates' namespace but cannot manage VMs.",
           "subtasks": [
-            "Create a new NetworkAttachmentDefinition for the storage network.",
-            "Create a VM and attach it to this storage network.",
-            "Inside the VM, configure an iSCSI initiator to connect to the external LUN."
+            "Create a user named 'template-manager'.",
+            "Create a Role in the 'golden-templates' namespace that grants full control over 'template' resources.",
+            "Create a RoleBinding to bind this role to the 'template-manager' user in that namespace."
           ]
         }
       ]
     },
     {
       "id": "task09",
-      "title": "Restore a single disk of a VM from a backup",
+      "title": "Expose a VM service via a custom Route",
       "sections": [
         {
-          "title": "Granular Restore",
-          "notice": "The data disk of 'app-server' has been corrupted. Restore only this disk from the existing backup.",
+          "title": "Custom Hostname Routing",
+          "notice": "Deploy a VM in a new 'sales-app' namespace and expose it at 'sales.apps.example.com'.",
           "subtasks": [
-            "Delete the 'app-log-disk' PVC belonging to the 'app-server' VM.",
-            "Create a 'Restore' resource from the 'app-server-backup'.",
-            "Configure the restore to only include the 'app-log-disk' PVC.",
-            "Verify the PVC is recreated and the VM becomes operational again."
+            "Create a new namespace named 'sales-app'.",
+            "Deploy a VM named 'sales-vm' in the namespace.",
+            "Create a ClusterIP service for the VM on port 8080.",
+            "Create a Route resource that exposes the service at the specified hostname."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Use a DataVolume to import a raw image from a web server",
-      "sections": [
-        {
-          "title": "DataVolume Import",
-          "notice": "Create a new PVC and populate it with a disk image from a URL.",
-          "subtasks": [
-            "Create a new DataVolume resource named 'import-dv'.",
-            "Configure the source to be an HTTP URL pointing to a valid qcow2 or raw image.",
-            "Specify a PVC size and access mode for the destination.",
-            "Verify the DataVolume creates a PVC and imports the image successfully."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task11",
-      "title": "Create a VM that uses the imported disk image",
-      "sections": [
-        {
-          "title": "VM from Imported Disk",
-          "notice": "Deploy a new VM using the PVC created by the 'import-dv' DataVolume.",
-          "subtasks": [
-            "Create a new VirtualMachine named 'imported-vm'.",
-            "Configure the VM to use the PVC generated from 'import-dv' as its boot disk.",
-            "Start the VM and ensure it boots correctly from the imported image."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task12",
       "title": "Clone a VM's disk using a DataVolume",
       "sections": [
         {
-          "title": "Disk Cloning",
-          "notice": "You need a copy of the 'app-server' OS disk for offline analysis.",
+          "title": "Disk Cloning for Backup",
+          "notice": "You need a copy of the 'sales-vm' OS disk for offline analysis. Perform actions in the 'sales-app' namespace.",
           "subtasks": [
-            "Identify the name of the PVC for the 'app-server' OS disk.",
-            "Create a new DataVolume named 'os-clone-dv'.",
+            "Identify the name of the PVC for the 'sales-vm' OS disk.",
+            "Create a new DataVolume named 'sales-disk-clone-dv'.",
             "Configure its source to be the existing PVC of the OS disk.",
             "Verify a new PVC is created and populated with a copy of the disk data."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task13",
-      "title": "Configure a VM to use a block-mode PVC",
-      "sections": [
-        {
-          "title": "Raw Block Storage",
-          "notice": "Deploy a high-performance database VM that uses a raw block device instead of a filesystem.",
-          "subtasks": [
-            "Find a StorageClass that supports 'volumeMode: Block'.",
-            "Create a new PVC named 'raw-db-pvc' with the volume mode set to 'Block'.",
-            "Deploy a new VM and attach 'raw-db-pvc' as a disk.",
-            "Verify inside the guest OS that a raw block device (e.g., /dev/vdb) is present."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task14",
-      "title": "Import an OVA image from a web server",
-      "sections": [
-        {
-          "title": "OVA Import",
-          "notice": "A vendor has supplied a pre-packaged application as an OVA file. Import it into the cluster.",
-          "subtasks": [
-            "Find the URL of a sample OVA file.",
-            "Create a VirtualMachine resource.",
-            "In the spec, add an annotation 'kubevirt.io/firstBoot' to indicate it needs processing.",
-            "Configure the boot disk to import from the OVA URL via a DataVolume."
-          ]
-        }
-      ]
-    },
-    {
-      "id": "task15",
-      "title": "Add access credentials to a VM template using cloud-init",
-      "sections": [
-        {
-          "title": "Secure User Creation",
-          "notice": "Modify the 'rhel9-static-ip' template to also create a new user with a specific SSH public key.",
-          "subtasks": [
-            "Edit the 'rhel9-static-ip' template.",
-            "In the cloud-init user data, add a 'users' section.",
-            "Define a user named 'automation' with sudo privileges.",
-            "Add a pre-generated SSH public key to the user's 'ssh_authorized_keys'."
           ]
         }
       ]
