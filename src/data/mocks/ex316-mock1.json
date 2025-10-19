@@ -1,6 +1,6 @@
 
 {
-  "examId": "ex316",
+  "examId": "ex316-1",
   "title": "OpenShift Virtualization Specialist (EX316) — Mock 1",
   "description": "Simulated Red Hat exam environment for OpenShift Virtualization.",
   "timeLimit": "4 hours",
@@ -26,7 +26,7 @@
       "id": "task02",
       "title": "Install and configure MariaDB server",
       "sections": [
-        {
+        {,
           "title": "Installation and service setup",
           "notice": "Ensure MariaDB is installed and running on boot.",
           "subtasks": [
@@ -35,20 +35,12 @@
             "Enable and start the MariaDB service.",
             "Verify the service is listening on the default port (3306)."
           ]
-        },
-        {
-          "title": "Liveness & Readiness Probes",
-          "notice": "The VM should recover automatically if the MariaDB service is stopped.",
-          "subtasks": [
-            "Add a Liveness Probe to the VM configuration.",
-            "Add a Readiness Probe to the VM configuration."
-          ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Expose the database service",
+      "title": "Expose the database service via NodePort",
       "sections": [
         {
           "title": "Service Creation",
@@ -61,6 +53,196 @@
           ]
         }
       ]
+    },
+    {
+        "id": "task04",
+        "title": "Create a custom template from an existing VM",
+        "sections": [
+            {
+                "title": "Template Creation",
+                "notice": "Create a reusable template from the configured 'db-server' VM.",
+                "subtasks": [
+                    "Shutdown the 'db-server' VM.",
+                    "Navigate to the Templates section and create a new template.",
+                    "Select the 'db-server' VM as the source.",
+                    "Name the template 'mariadb-template'."
+                ]
+            }
+        ]
+    },
+    {
+        "id": "task05",
+        "title": "Perform an online snapshot of a running VM",
+        "sections": [
+            {
+                "title": "Live Snapshot",
+                "notice": "Take a snapshot of a newly deployed web server without shutting it down.",
+                "subtasks": [
+                    "Deploy a new VM named 'web-server' from a generic template.",
+                    "Create a 'VirtualMachineSnapshot' resource for the 'web-server' VM.",
+                    "Ensure the snapshot completes while the VM is still running.",
+                    "Verify the 'readyToUse' status of the snapshot is true."
+                ]
+            }
+        ]
+    },
+    {
+        "id": "task06",
+        "title": "Clone a VM in the same namespace",
+        "sections": [
+            {
+                "title": "VM Cloning",
+                "notice": "Create a duplicate of the 'web-server' for testing purposes.",
+                "subtasks": [
+                    "Create a 'VirtualMachineClone' resource.",
+                    "Specify 'web-server' as the source VM.",
+                    "Name the new target VM 'web-server-clone'.",
+                    "Verify the new VM is created and starts successfully."
+                ]
+            }
+        ]
+    },
+    {
+        "id": "task07",
+        "title": "Perform a live migration of a VM",
+        "sections": [
+            {
+                "title": "Node Evacuation Simulation",
+                "notice": "Move the 'web-server' VM to a different node without downtime.",
+                "subtasks": [
+                    "Identify the node the VM is currently running on.",
+                    "Create a 'VirtualMachineInstanceMigration' resource for the VM.",
+                    "Monitor the migration job until it completes.",
+                    "Confirm the VM is now running on a different node."
+                ]
+            }
+        ]
+    },
+    {
+        "id": "task08",
+        "title": "Configure a Readiness Probe for a VM",
+        "sections": [
+            {
+                "title": "VM Health Check",
+                "notice": "Add a readiness probe to the 'web-server' to ensure it only receives traffic when ready.",
+                "subtasks": [
+                    "Edit the 'web-server' VirtualMachine object.",
+                    "Add a 'readinessProbe' to the VM spec.",
+                    "Configure the probe to perform a TCP socket check on port 80.",
+                    "Verify the VMI shows a ready status after the probe succeeds."
+                ]
+            }
+        ]
+    },
+    {
+        "id": "task09",
+        "title": "Attach a VM to a secondary network using a NAD",
+        "sections": [
+            {
+                "title": "Multi-homed VM",
+                "notice": "Connect the 'db-server' to a secondary management network.",
+                "subtasks": [
+                    "Create a NetworkAttachmentDefinition for a bridge network named 'management-net'.",
+                    "Edit the 'db-server' VM.",
+                    "Add a new network interface attached to the 'management-net'.",
+                    "Start the VM and verify it has two network interfaces inside the guest OS."
+                ]
+            }
+        ]
+    },
+    {
+        "id": "task10",
+        "title": "Backup and Restore a VM using OADP",
+        "sections": [
+            {
+                "title": "VM Disaster Recovery",
+                "notice": "Simulate a VM failure by backing it up and restoring it.",
+                "subtasks": [
+                    "Create a 'Backup' of the 'web-server' VM.",
+                    "Delete the 'web-server' VM after the backup is complete.",
+                    "Create a 'Restore' resource from the backup.",
+                    "Verify the 'web-server' VM is recreated and running."
+                ]
+            }
+        ]
+    },
+    {
+        "id": "task11",
+        "title": "Perform node maintenance by draining a node",
+        "sections": [
+            {
+                "title": "Node Drain",
+                "notice": "Safely prepare a worker node for maintenance by migrating its VMs.",
+                "subtasks": [
+                    "Choose a worker node that is running at least one VM.",
+                    "Use 'oc adm drain <node-name>' with the correct flags to evict the VMs.",
+                    "Ensure that live migration is triggered for the running VMs.",
+                    "Verify the node is marked as unschedulable and has no running VMs."
+                ]
+            }
+        ]
+    },
+    {
+        "id": "task12",
+        "title": "Configure a VM to use a PVC with the block storage mode",
+        "sections": [
+            {
+                "title": "Block Storage for VMs",
+                "notice": "Provide a database VM with a raw block device for higher performance.",
+                "subtasks": [
+                    "Find a StorageClass that supports block volume mode.",
+                    "Create a PVC named 'db-block-pvc' with 'accessModes: ReadWriteOnce' and 'volumeMode: Block'.",
+                    "Create a new VM and attach the PVC as a disk.",
+                    "Verify a raw block device is visible inside the guest OS."
+                ]
+            }
+        ]
+    },
+    {
+        "id": "task13",
+        "title": "Update the memory and CPU of a running VM",
+        "sections": [
+            {
+                "title": "VM Hotplug",
+                "notice": "Increase the resources of the 'db-server' VM without a reboot.",
+                "subtasks": [
+                    "Edit the 'VirtualMachine' object for 'db-server'.",
+                    "Increase the 'spec.template.spec.domain.resources.requests.memory' to a higher value.",
+                    "The change should apply automatically to the running VMI.",
+                    "Verify inside the guest OS that the new memory amount is recognized."
+                ]
+            }
+        ]
+    },
+    {
+        "id": "task14",
+        "title": "Prepare a VM for node failure by setting eviction strategy",
+        "sections": [
+            {
+                "title": "Eviction Strategy",
+                "notice": "Ensure a critical VM will be live migrated if the node enters a not-ready state.",
+                "subtasks": [
+                    "Edit the 'db-server' VirtualMachine object.",
+                    "Set the 'spec.template.spec.evictionStrategy' to 'LiveMigrate'.",
+                    "This ensures the VM will not be terminated during a node failure if live migration is possible."
+                ]
+            }
+        ]
+    },
+    {
+        "id": "task15",
+        "title": "Access a VM using the 'virtctl ssh' command",
+        "sections": [
+            {
+                "title": "CLI Access",
+                "notice": "Use the virtctl client tool to SSH into the 'web-server' VM.",
+                "subtasks": [
+                    "Ensure you have the 'virtctl' client installed.",
+                    "Run 'virtctl ssh <vm-name>' to connect to the VM.",
+                    "This method works even if the VM does not have an external IP address."
+                ]
+            }
+        ]
     }
   ]
 }

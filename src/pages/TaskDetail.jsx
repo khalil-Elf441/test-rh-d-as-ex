@@ -3,6 +3,7 @@ import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import SubtaskCheckbox from '../components/SubtaskCheckbox';
 import NotFound from './NotFound';
+import Breadcrumbs from '../components/Breadcrumbs';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { examDataMap } from '../data/examData';
 
@@ -16,7 +17,7 @@ const TaskDetail = () => {
     {}
   );
 
-  if (!task) {
+  if (!task || !currentExam) {
     return <NotFound />;
   }
 
@@ -30,13 +31,11 @@ const TaskDetail = () => {
 
   return (
     <div>
-      <Link to={`/tasks/${examId}`} className="back-link">
-        &larr; Back to Task List
-      </Link>
-
+      <Breadcrumbs exam={currentExam} task={task} />
       <div className="task-detail-header">
         <h1>{task.title}</h1>
       </div>
+      <hr />
 
       {task.sections.map((section, sectionIndex) => (
         <section key={sectionIndex} className="task-section">

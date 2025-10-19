@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { useParams, Link, useOutletContext } from 'react-router-dom';
 import TaskRadio from '../components/TaskRadio';
 import NotFound from './NotFound';
+import Breadcrumbs from '../components/Breadcrumbs';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { examDataMap } from '../data/examData';
 
@@ -32,6 +33,7 @@ const TasksPage = () => {
 
   return (
     <div>
+        <Breadcrumbs exam={currentExam} />
         <h1 className="page-title">{currentExam.title}</h1>
         <p className="page-intro">Please review the Important Configuration Information section below for information on your exam environment.</p>
         <hr />
