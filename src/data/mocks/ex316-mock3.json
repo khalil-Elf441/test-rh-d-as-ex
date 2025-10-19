@@ -1,167 +1,195 @@
 {
   "examId": "ex316-3",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 3: Storage, Templates, and Recovery",
-  "description": "This exam challenges your skills in storage management, template customization, and disaster recovery using OADP.",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 3: Full Spectrum Exam III",
+  "description": "A comprehensive 14-task exam covering a wide range of objectives including storage management, templates, and recovery.",
   "timeLimit": "4 hours",
   "tasks": [
     {
       "id": "task01",
-      "title": "Deploy the OADP Operator for backup and restore",
+      "title": "Deploy and Configure OADP for Virtual Machine Backup",
       "sections": [
         {
-          "title": "Operator Installation and Configuration",
-          "notice": "The OADP Operator is required for all backup and restore tasks. Perform all actions in the 'openshift-adp' namespace.",
+          "title": "Operator Deployment",
+          "notice": "The OADP Operator is required for backup and restore tasks. Perform all actions in the 'openshift-adp' namespace.",
           "subtasks": [
-            "Install the 'OADP Operator for OpenShift Virtualization' from OperatorHub.",
-            "Create a 'DataProtectionApplication' (DPA) resource.",
-            "Configure the DPA to use a pre-existing S3-compatible object storage location for backups.",
-            "Verify all operator pods are running and the DPA is reconciled."
+            "Install the 'OADP Operator for OpenShift Virtualization'.",
+            "Create a 'DataProtectionApplication' (DPA) resource, configuring it to use a specified S3-compatible backup location.",
+            "Verify the OADP pods are running correctly."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Create a VM with multiple disks on different storage tiers",
+      "title": "Deploy a Multi-Tier Application",
       "sections": [
         {
-          "title": "Tiered Storage Provisioning",
-          "notice": "Deploy a VM in a new namespace 'app-tier'. The VM requires its OS on a fast disk and logs on a slower one.",
+          "title": "VM Provisioning",
+          "notice": "Deploy a web server and a database, each in its own namespace: 'frontend-prod' and 'backend-prod'.",
           "subtasks": [
-            "Create a new namespace named 'app-tier'.",
-            "Create a 20Gi PVC named 'app-os-disk' using a fast, SSD-based StorageClass.",
-            "Create a 50Gi PVC named 'app-log-disk' using a slow, HDD-based StorageClass.",
-            "Create a new VM named 'app-server' in the 'app-tier' namespace, using the 'app-os-disk' for its boot volume.",
-            "Attach the 'app-log-disk' as a secondary data volume.",
-            "Inside the guest OS, format the log disk and mount it persistently."
+            "Create the namespaces 'frontend-prod' and 'backend-prod'.",
+            "In 'frontend-prod', deploy a VM named 'frontend-vm'. Install 'nginx' inside it.",
+            "In 'backend-prod', deploy a VM named 'backend-vm'. Install 'postgresql' inside it."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Perform a full backup of the 'app-server' VM",
+      "title": "Configure Storage and Networking for the Application",
       "sections": [
         {
-          "title": "OADP Backup",
-          "notice": "Create a complete, application-consistent backup of the multi-disk 'app-server' VM. Perform all actions in the 'openshift-adp' namespace.",
+          "title": "Disk and Network Configuration",
+          "notice": "The backend requires a dedicated disk and must be accessible by the frontend.",
           "subtasks": [
-            "Create a 'Backup' resource named 'app-server-backup'.",
-            "Configure the backup to include the 'app-tier' namespace.",
-            "Ensure both snapshots and data movement are enabled for a complete backup.",
-            "Monitor the backup until its phase is 'Completed' and check for any errors."
+            "In 'backend-prod', create a 15Gi PVC named 'pg-disk' and attach it to 'backend-vm'.",
+            "Inside 'backend-vm', create a filesystem on the new disk and mount it on '/var/lib/pgsql'.",
+            "In 'backend-prod', create a ClusterIP service for 'backend-vm' on port 5432.",
+            "Create a NetworkPolicy in 'backend-prod' to allow ingress from 'frontend-prod'."
           ]
         }
       ]
     },
     {
       "id": "task04",
-      "title": "Simulate a disaster and restore the 'app-server' VM",
+      "title": "Back up the Entire Application",
       "sections": [
         {
-          "title": "OADP Restore",
-          "notice": "The 'app-tier' namespace has been accidentally deleted. Restore the VM from backup.",
+          "title": "OADP Multi-Namespace Backup",
+          "notice": "Create a single backup that includes both the frontend and backend namespaces.",
           "subtasks": [
-            "Delete the 'app-tier' namespace entirely.",
-            "Create a 'Restore' resource named 'app-server-restore' from the 'app-server-backup'.",
-            "Ensure the restore operation recreates the namespace, the VM, and its associated storage resources.",
-            "Verify the restored VM starts and is functional in the recreated 'app-tier' namespace."
+            "Create a 'Backup' resource named 'multitier-app-backup'.",
+            "Configure the backup to include both the 'frontend-prod' and 'backend-prod' namespaces.",
+            "Verify the backup completes successfully."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Create a custom VM template with cloud-init networking",
+      "title": "Restore the Application to a New Set of Namespaces",
       "sections": [
         {
-          "title": "Template Customization with Cloud-Init",
-          "notice": "Create a template in a new 'golden-templates' namespace that configures a static IP address on its primary network interface.",
+          "title": "OADP Restore with Namespace Mapping",
+          "notice": "Simulate a disaster recovery test by restoring the application to new namespaces: 'frontend-dr' and 'backend-dr'.",
           "subtasks": [
-            "Create a new namespace named 'golden-templates'.",
-            "Create a new template named 'rhel9-static-ip'.",
-            "In the template, include a 'cloudInitNoCloud' data source.",
-            "Provide 'networkData' to configure the eth0 interface with a static IP address (e.g., 10.1.2.100/24) and a gateway.",
-            "Deploy a test VM from this template and verify it boots with the correct static IP."
+            "Create a 'Restore' resource from the 'multitier-app-backup'.",
+            "Use 'namespaceMapping' to map 'frontend-prod' to 'frontend-dr' and 'backend-prod' to 'backend-dr'.",
+            "Verify both VMs are restored and running in their new respective namespaces."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Generate a template from an existing, running VM",
+      "title": "Create a Custom Template with Cloud-Init",
       "sections": [
         {
-          "title": "Template Generation",
-          "notice": "An application team has fully configured a VM named 'golden-image-vm'. Create a template from it without shutting it down. Perform actions in the 'golden-templates' namespace.",
+          "title": "Template with Static Networking",
+          "notice": "Create a template in a new 'corp-templates' namespace that applies a static network configuration.",
           "subtasks": [
-            "Deploy a VM named 'golden-image-vm' for this purpose.",
-            "Ensure the 'golden-image-vm' is using a storage class that supports snapshots.",
-            "Use the web console or CLI to generate a new template named 'golden-template' from the running VM.",
-            "Review the generated template."
+            "Create the 'corp-templates' namespace.",
+            "Create a new template named 'rhel9-static-net'.",
+            "Use cloud-init 'networkData' to configure the primary interface with a static IP address."
           ]
         }
       ]
     },
     {
       "id": "task07",
-      "title": "Modify the 'golden-template' to make it generic",
+      "title": "Generate a Template from a Running VM",
       "sections": [
         {
-          "title": "Template Parameterization",
-          "notice": "The generated template is not generic. Modify it to allow customization at deployment time. Perform actions in the 'golden-templates' namespace.",
+          "title": "Live Template Generation",
+          "notice": "Create a template from the running 'frontend-vm' in the 'frontend-prod' namespace.",
           "subtasks": [
-            "Edit the 'golden-template'.",
-            "Add parameters for the VM name, memory, and CPU count.",
-            "Modify the template objects to use these new parameters instead of hardcoded values.",
-            "Deploy a new VM from the modified template, providing custom values for the parameters."
+            "Ensure 'frontend-vm' uses a storage class that supports snapshots.",
+            "Generate a new template named 'live-frontend-template' in the 'corp-templates' namespace from the running VM."
           ]
         }
       ]
     },
     {
       "id": "task08",
-      "title": "Configure RBAC for template management",
+      "title": "Clone a VM's Disk using a DataVolume",
       "sections": [
         {
-          "title": "Template User Permissions",
-          "notice": "Create a user 'template-manager' who can manage templates in the 'golden-templates' namespace but cannot manage VMs.",
+          "title": "Disk Cloning",
+          "notice": "Clone the 'pg-disk' PVC for analysis. Perform actions in the 'backend-prod' namespace.",
           "subtasks": [
-            "Create a user named 'template-manager'.",
-            "Create a Role in the 'golden-templates' namespace that grants full control over 'template' resources.",
-            "Create a RoleBinding to bind this role to the 'template-manager' user in that namespace."
+            "Create a DataVolume that clones the 'pg-disk' PVC to a new PVC named 'pg-disk-clone'.",
+            "Verify the new PVC is created and populated."
           ]
         }
       ]
     },
     {
       "id": "task09",
-      "title": "Expose a VM service via a custom Route",
+      "title": "Configure RBAC for a Template User",
       "sections": [
         {
-          "title": "Custom Hostname Routing",
-          "notice": "Deploy a VM in a new 'sales-app' namespace and expose it at 'sales.apps.example.com'.",
+          "title": "User Permissions",
+          "notice": "Create a user 'template-user' who can only use templates from the 'corp-templates' namespace.",
           "subtasks": [
-            "Create a new namespace named 'sales-app'.",
-            "Deploy a VM named 'sales-vm' in the namespace.",
-            "Create a ClusterIP service for the VM on port 8080.",
-            "Create a Route resource that exposes the service at the specified hostname."
+            "Create a user named 'template-user'.",
+            "Create a Role in the 'corp-templates' namespace that grants 'get' and 'list' access to Template resources.",
+            "Bind this role to the 'template-user'."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Clone a VM's disk using a DataVolume",
+      "title": "Expose the Restored Frontend VM with a Route",
       "sections": [
         {
-          "title": "Disk Cloning for Backup",
-          "notice": "You need a copy of the 'sales-vm' OS disk for offline analysis. Perform actions in the 'sales-app' namespace.",
+          "title": "External Access",
+          "notice": "Expose the 'frontend-vm' in the 'frontend-dr' namespace externally.",
           "subtasks": [
-            "Identify the name of the PVC for the 'sales-vm' OS disk.",
-            "Create a new DataVolume named 'sales-disk-clone-dv'.",
-            "Configure its source to be the existing PVC of the OS disk.",
-            "Verify a new PVC is created and populated with a copy of the disk data."
+            "Create a ClusterIP service for the VM.",
+            "Create a Route to expose the service."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Perform a Live Migration of the Backend VM",
+      "sections": [
+        {
+          "title": "Live Migration",
+          "notice": "Migrate the 'backend-vm' to another node without downtime.",
+          "subtasks": [
+            "Initiate a live migration for the 'backend-vm'.",
+            "Monitor the migration to completion."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Configure a Health Probe for the Backend VM",
+      "sections": [
+        {
+          "title": "Liveness Probe",
+          "notice": "Ensure the 'backend-vm' restarts if PostgreSQL fails.",
+          "subtasks": [
+            "Add a liveness probe to the 'backend-vm' that performs a TCP socket check on port 5432."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task13",
+      "title": "Install a Custom Package on the Frontend VM",
+      "sections": [
+        {
+          "title": "System Administration",
+          "notice": "Install a monitoring agent on the 'frontend-vm'. To do this, first configure a custom repository inside the VM. Create the file '/etc/yum.repos.d/monitoring.repo' with the content: [monitoring]\nname=Monitoring Agent Repo\nbaseurl=http://repo.example.com/monitoring_agents\nenabled=1\ngpgcheck=0. Perform actions in the 'frontend-prod' namespace.",
+          "subtasks": [
+            "Log into the 'frontend-vm'.",
+            "Install the 'corp-monitoring-agent' package using the provided repository details.",
+            "Enable and start the 'corp-monitoring-agent' service."
           ]
         }
       ]

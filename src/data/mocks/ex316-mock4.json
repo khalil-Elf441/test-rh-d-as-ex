@@ -1,166 +1,188 @@
 {
   "examId": "ex316-4",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 4: High Availability and Scheduling",
-  "description": "This exam focuses on ensuring VM resilience through high availability configurations, advanced scheduling, and failure recovery.",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 4: Full Spectrum Exam IV",
+  "description": "A comprehensive 12-task exam covering a wide range of objectives including high availability, scheduling, and failure recovery.",
   "timeLimit": "4 hours",
   "tasks": [
     {
       "id": "task01",
-      "title": "Deploy a critical application VM with a guaranteed QoS class",
+      "title": "Deploy a Guaranteed-QoS VM with Dedicated Resources",
       "sections": [
         {
-          "title": "Guaranteed Quality of Service",
-          "notice": "A low-latency trading application requires dedicated CPU and memory resources. Deploy it in a new 'trading-floor' namespace.",
+          "title": "Dedicated CPU and Memory",
+          "notice": "Deploy a VM for a latency-sensitive application in a new 'realtime-apps' namespace.",
           "subtasks": [
-            "Create a new namespace named 'trading-floor'.",
-            "Create a VM named 'trading-vm' in the new namespace.",
-            "Set the memory and CPU requests equal to the memory and CPU limits (e.g., 4Gi memory, 2 CPUs).",
-            "Enable the 'dedicatedCpuPlacement' feature for the VM to ensure CPU pinning.",
-            "Verify the underlying pod for the VM has the 'Guaranteed' QoS class."
+            "Create a new namespace named 'realtime-apps'.",
+            "Deploy a VM named 'latency-critical-vm'.",
+            "Set memory and CPU requests equal to the limits (e.g., 4Gi, 2 CPUs).",
+            "Enable 'dedicatedCpuPlacement' to ensure CPU pinning.",
+            "Verify the VM's underlying pod has the 'Guaranteed' QoS class."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Configure a pod anti-affinity rule for a pair of load balancer VMs",
+      "title": "Configure High Availability for the VM",
       "sections": [
         {
-          "title": "Redundant Load Balancers",
-          "notice": "Deploy two load balancer VMs in a new 'net-infra' namespace and ensure they do not run on the same node.",
+          "title": "Health Probes and Eviction Strategy",
+          "notice": "Ensure the 'latency-critical-vm' is resilient. Perform actions in the 'realtime-apps' namespace.",
           "subtasks": [
-            "Create a new namespace named 'net-infra'.",
-            "Deploy two identical VMs named 'lb-vm-1' and 'lb-vm-2', both with the label 'app=loadbalancer'.",
-            "For both VMs, add a required 'podAntiAffinity' rule.",
-            "The rule should prevent scheduling on a node if another pod with the label 'app=loadbalancer' is already present."
+            "Add a liveness probe that checks a TCP port 9000.",
+            "Add a watchdog device to the VM.",
+            "Set the VM's 'evictionStrategy' to 'LiveMigrateIfPossible'."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Set up a watchdog and health probes for the 'trading-vm'",
+      "title": "Configure Redundant Load Balancer VMs with Anti-Affinity",
       "sections": [
         {
-          "title": "VM Health and Application Monitoring",
-          "notice": "The 'trading-vm' must be highly resilient. Perform actions in the 'trading-floor' namespace.",
+          "title": "VM Anti-Affinity",
+          "notice": "In a new 'infra-services' namespace, deploy two load balancer VMs that must not run on the same node.",
           "subtasks": [
-            "Add a watchdog device to the 'trading-vm' definition using the 'i6300esb' model.",
-            "Add a liveness probe to the 'trading-vm' that performs a TCP socket check on port 9999.",
-            "Log into the VM, install the 'watchdog' package, and ensure the service is running."
+            "Create a new namespace named 'infra-services'.",
+            "Deploy two VMs, 'lb-1' and 'lb-2', with the label 'role=lb-pair'.",
+            "Add a required 'podAntiAffinity' rule to both VMs to prevent co-location based on the 'role=lb-pair' label."
           ]
         }
       ]
     },
     {
       "id": "task04",
-      "title": "Set the eviction strategy and test a node failure",
+      "title": "Expose the Load Balancer VMs and Configure RBAC",
       "sections": [
         {
-          "title": "Node Failure Recovery Strategy",
-          "notice": "The load balancer VMs must be live-migrated if their node fails. Perform actions in the 'net-infra' namespace.",
+          "title": "Service and User Management",
+          "notice": "Create a single service to balance traffic between the LBs and create a limited-access user. Perform actions in the 'infra-services' namespace.",
           "subtasks": [
-            "Set the 'evictionStrategy' for both 'lb-vm-1' and 'lb-vm-2' to 'LiveMigrateIfPossible'.",
-            "Identify the node where 'lb-vm-1' is running.",
-            "Cordon and drain the node to simulate a graceful shutdown.",
-            "Observe that 'lb-vm-1' is live-migrated to another node."
+            "Create a NodePort service that targets both 'lb-1' and 'lb-2' using the 'role=lb-pair' label.",
+            "Create a user named 'net-op'.",
+            "Create a Role that allows the 'net-op' user to get, list, and delete pods and services, but not VMs.",
+            "Bind the Role to the 'net-op' user."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Use taints and tolerations to create a dedicated VM node",
+      "title": "Use Taints and Tolerations for a Dedicated GPU Node",
       "sections": [
         {
-          "title": "Node Tainting and Tolerations",
-          "notice": "A specific node should only be used by virtualization workloads.",
+          "title": "Node Tainting and VM Tolerations",
+          "notice": "A node with a GPU must be reserved for specific VMs. Deploy a VM that can use this node in a new 'ml-ops' namespace.",
           "subtasks": [
-            "Add a taint 'workload=virtualization:NoSchedule' to one of your worker nodes.",
-            "Edit the 'trading-vm' in the 'trading-floor' namespace.",
-            "Add a toleration to the VM's specification that matches the taint.",
-            "Verify the VM can be scheduled on the tainted node."
+            "Create a new namespace named 'ml-ops'.",
+            "Add a taint 'gpu=true:NoSchedule' to a worker node.",
+            "Deploy a new VM named 'ml-training-vm' in the 'ml-ops' namespace.",
+            "Add a toleration to the VM's specification to allow it to be scheduled on the tainted node."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Configure a custom route to expose a service on a specific path",
+      "title": "Attach a Disk and Install Custom Drivers on the GPU VM",
       "sections": [
         {
-          "title": "Path-Based Routing",
-          "notice": "Expose a service running on 'trading-vm' via a custom route at path '/api/trade'. Perform actions in the 'trading-floor' namespace.",
+          "title": "Disk and Package Management",
+          "notice": "Configure the 'ml-training-vm' with storage and necessary software. To install the driver, you must first configure a custom repository inside the VM. Create the file '/etc/yum.repos.d/gpu-drivers.repo' with the content: [gpu-drivers]\nname=GPU Drivers\nbaseurl=http://repo.example.com/gpu_drivers\nenabled=1\ngpgcheck=0. Perform actions in the 'ml-ops' namespace.",
           "subtasks": [
-            "Create a ClusterIP service for 'trading-vm' on port 8080.",
-            "Create a Route resource.",
-            "Configure the route to direct traffic for the path '/api/trade' to the created service.",
-            "Verify the service is accessible via the route's host and path."
+            "Create and attach a 50Gi PVC to the 'ml-training-vm'.",
+            "Log into the VM and create a filesystem on the new disk.",
+            "Install the 'corp-gpu-driver' package using the provided repository details."
           ]
         }
       ]
     },
     {
       "id": "task07",
-      "title": "Configure RBAC for a junior administrator",
+      "title": "Simulate a Node Failure and Observe VM Recovery",
       "sections": [
         {
-          "title": "Least Privilege Access Control",
-          "notice": "Create a user 'jr-admin' who can only start and stop VMs in the 'trading-floor' namespace.",
+          "title": "Failure Simulation",
+          "notice": "Test the HA configuration of the 'latency-critical-vm' by simulating a node failure.",
           "subtasks": [
-            "Create a user named 'jr-admin'.",
-            "Create a Role in the 'trading-floor' namespace.",
-            "The role should grant permissions to 'get', 'list', and 'update' VirtualMachines, but only for the 'start' and 'stop' subresources.",
-            "Bind this Role to the 'jr-admin' user."
+            "Identify the node where 'latency-critical-vm' is running.",
+            "Drain the node to trigger a live migration.",
+            "Observe that the VM is successfully migrated to another node without downtime."
           ]
         }
       ]
     },
     {
       "id": "task08",
-      "title": "Clone a VM's disk for backup using DataVolumes",
+      "title": "Create a Custom Template from the GPU VM",
       "sections": [
         {
-          "title": "Manual Disk Backup",
-          "notice": "Create a point-in-time copy of the 'trading-vm's' primary disk. Perform actions in the 'trading-floor' namespace.",
+          "title": "Template Generation",
+          "notice": "Create a reusable template from the configured 'ml-training-vm'. Perform actions in the 'ml-ops' namespace.",
           "subtasks": [
-            "Identify the PVC associated with the 'trading-vm's' root disk.",
-            "Create a new DataVolume resource named 'trading-disk-clone'.",
-            "Configure the source of the DataVolume to be the PVC of the trading VM.",
-            "Verify that a new PVC is created and populated with a clone of the disk."
+            "Generate a template named 'gpu-node-template' from the 'ml-training-vm'.",
+            "Verify the template is created in the 'ml-ops' namespace."
           ]
         }
       ]
     },
     {
       "id": "task09",
-      "title": "Configure a VM to have affinity to a specific geographical region",
+      "title": "Clone the Latency-Critical VM's Disk",
       "sections": [
         {
-          "title": "Preferred Node Affinity",
-          "notice": "The 'trading-vm' should prefer to run on nodes in the 'east' region, but can run elsewhere if no such nodes are available.",
+          "title": "DataVolume Cloning",
+          "notice": "Create a backup copy of the 'latency-critical-vm's' root disk. Perform actions in the 'realtime-apps' namespace.",
           "subtasks": [
-            "Label at least one worker node with 'region=east'.",
-            "Edit the 'trading-vm' resource.",
-            "Add a 'nodeAffinity' rule to the VM.",
-            "Configure a 'preferredDuringSchedulingIgnoredDuringExecution' rule that gives a high weight to nodes with the 'region=east' label."
+            "Identify the root PVC for the 'latency-critical-vm'.",
+            "Create a DataVolume that clones this PVC to a new PVC named 'latency-vm-disk-backup'."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Troubleshoot a VM that fails to start due to resource constraints",
+      "title": "Configure a Preferred Node Affinity",
       "sections": [
         {
-          "title": "Debugging Scheduling Failures",
-          "notice": "A VM is stuck in a 'Pending' state. Diagnose and fix the issue in a new 'test-lab' namespace.",
+          "title": "Scheduling Preference",
+          "notice": "A new VM should prefer to run in the 'east' region if possible. Deploy it in the 'ml-ops' namespace.",
           "subtasks": [
-            "Create a new namespace named 'test-lab'.",
-            "Create a new VM that requests an impossible amount of memory (e.g., 1000Gi).",
-            "Observe that the VM fails to schedule.",
-            "Use 'oc describe' on the VMI or its pod to see events related to scheduling failure.",
-            "Correct the VM's memory request to a reasonable value and verify that it starts."
+            "Label at least one worker node with 'region=east'.",
+            "Deploy a new VM named 'reporting-vm'.",
+            "Add a 'preferredDuringSchedulingIgnoredDuringExecution' node affinity rule with a high weight for the 'region=east' label."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Backup and Restore the Load Balancer VMs",
+      "sections": [
+        {
+          "title": "OADP Backup and Restore",
+          "notice": "Backup the entire 'infra-services' namespace and restore it.",
+          "subtasks": [
+            "Create a backup of the 'infra-services' namespace using OADP.",
+            "Delete the namespace.",
+            "Restore the namespace from the backup."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Troubleshoot a VM Stuck in Pending State",
+      "sections": [
+        {
+          "title": "Debugging Scheduling",
+          "notice": "A VM is failing to schedule. Diagnose and fix it in the 'infra-services' namespace.",
+          "subtasks": [
+            "Create a VM that requests an impossible amount of CPU (e.g., 1000 cores).",
+            "Observe the VM is stuck in a 'Pending' state.",
+            "Describe the VMI pod and find the scheduling failure event in the logs.",
+            "Correct the CPU request to a reasonable value and verify the VM starts."
           ]
         }
       ]

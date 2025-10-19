@@ -1,7 +1,7 @@
 {
   "examId": "ex316-2",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 2: Advanced Migration and High Availability",
-  "description": "This exam focuses on migrating VMs from external hypervisors, ensuring high availability, and advanced networking.",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 2: Full Spectrum Exam II",
+  "description": "A comprehensive 13-task exam covering a wide range of objectives including migration, high availability, and advanced networking.",
   "timeLimit": "4 hours",
   "tasks": [
     {
@@ -9,154 +9,193 @@
       "title": "Migrate a VM from VMware vSphere",
       "sections": [
         {
-          "title": "Migration Toolkit for Virtualization Setup",
-          "notice": "You will migrate a VM from a simulated vSphere environment. First, configure the provider in a new namespace called 'vm-migration'.",
+          "title": "Migration Toolkit and Execution",
+          "notice": "Migrate a VM named 'legacy-erp' from a simulated vSphere environment into a new namespace 'erp-prod'.",
           "subtasks": [
-            "Create a new namespace named 'vm-migration'.",
+            "Create a new namespace named 'erp-prod'.",
             "Install the 'Migration Toolkit for Virtualization' Operator.",
-            "In the 'vm-migration' namespace, create a secret named 'vsphere-secret' containing the credentials for a mock vCenter server.",
-            "Create a 'Provider' resource for VMware, referencing the secret, and verify the connection is successful."
+            "Configure a 'Provider' resource to connect to the mock vSphere environment.",
+            "Create a 'Plan' to migrate the 'legacy-erp' VM, mapping source networks and datastores to OpenShift targets.",
+            "Execute the migration and verify the new VM is running in the 'erp-prod' namespace."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Plan and execute the vSphere VM migration",
+      "title": "Configure High Availability for the Migrated VM",
       "sections": [
         {
-          "title": "Migration Plan and Execution",
-          "notice": "Migrate the VM named 'legacy-web-app' to the 'vm-migration' namespace.",
+          "title": "Eviction Strategy and Health Probes",
+          "notice": "Ensure the 'legacy-erp' VM is resilient to node failures. Perform actions in the 'erp-prod' namespace.",
           "subtasks": [
-            "Create a 'Plan' resource in the 'vm-migration' namespace.",
-            "Map the source vSphere network to the default OpenShift pod network.",
-            "Map the source vSphere datastore to the default OpenShift Container Storage class.",
-            "Select the 'legacy-web-app' VM from the source provider inventory for migration.",
-            "Create a 'Migration' resource to execute the plan.",
-            "Monitor the migration until it succeeds and the new VM is running in OpenShift."
+            "Edit the 'legacy-erp' VM and set its 'evictionStrategy' to 'LiveMigrateIfPossible'.",
+            "Add a liveness probe that performs a TCP socket check on port 8080.",
+            "Add a watchdog device to the VM using the 'i6300esb' model."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Configure networking and expose the migrated VM",
+      "title": "Expose the Migrated VM and Configure RBAC",
       "sections": [
         {
-          "title": "Service and Route Configuration",
-          "notice": "The migrated 'legacy-web-app' VM runs a service on port 8080. Expose it externally.",
+          "title": "Service, Route, and User Management",
+          "notice": "Expose the ERP application and create a user with limited permissions. Perform actions in the 'erp-prod' namespace.",
           "subtasks": [
-            "Create a NodePort service named 'legacy-webapp-svc' that exposes port 8080 on the VM.",
-            "Verify the service is accessible via its assigned NodePort from all cluster nodes."
+            "Create a NodePort service to expose port 8080 of the 'legacy-erp' VM.",
+            "Create a user named 'erp-support'.",
+            "Create a Role that allows this user to view all resources in the 'erp-prod' namespace but modify none.",
+            "Bind the Role to the 'erp-support' user."
           ]
         }
       ]
     },
     {
       "id": "task04",
-      "title": "Deploy a highly available pair of database VMs",
+      "title": "Deploy a Highly Available Database Cluster",
       "sections": [
         {
           "title": "VM Deployment and Anti-Affinity",
-          "notice": "Deploy two database VMs that must never run on the same physical node. Perform all actions in a new namespace named 'ha-db'.",
+          "notice": "Deploy a two-node database cluster in a new 'shared-db' namespace, ensuring nodes run on separate physical hosts.",
           "subtasks": [
-            "Create a new namespace named 'ha-db'.",
-            "Deploy a VM named 'db-main' with the label 'db-cluster=main'.",
-            "Deploy a second VM named 'db-replica' with the same label.",
-            "Add a required 'podAntiAffinity' rule to both VMs to prevent them from being scheduled on the same node based on the 'db-cluster=main' label.",
-            "Verify the two VMs are running on different worker nodes."
+            "Create a new namespace named 'shared-db'.",
+            "Deploy two VMs, 'db-node1' and 'db-node2', with the label 'app=db-cluster'.",
+            "Add a required 'podAntiAffinity' rule to both VMs to prevent them from being scheduled on the same node."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Configure shared storage for the database VMs",
+      "title": "Configure Shared and Local Storage for the Database Cluster",
       "sections": [
         {
-          "title": "ReadWriteMany (RWX) Volume Configuration",
-          "notice": "The database VMs need to share a volume for replication logs. Perform all actions in the 'ha-db' namespace.",
+          "title": "Multi-Tier Storage Configuration",
+          "notice": "The database cluster requires both shared and local storage. Perform actions in the 'shared-db' namespace.",
           "subtasks": [
-            "Create a PVC named 'db-repl-logs' with 'ReadWriteMany' access mode and a size of 5Gi.",
-            "Ensure you select a StorageClass that supports RWX volumes.",
-            "Attach the 'db-repl-logs' PVC as a data volume to both the 'db-main' and 'db-replica' VMs."
+            "Create a 10Gi PVC named 'db-shared-vol' with 'ReadWriteMany' access mode.",
+            "Attach this shared PVC to both 'db-node1' and 'db-node2'.",
+            "For each VM, also create and attach a dedicated 15Gi 'ReadWriteOnce' PVC for local data."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Configure RBAC for the database administrators",
+      "title": "Create a Custom Template with Cloud-Init",
       "sections": [
         {
-          "title": "User and Role Management",
-          "notice": "Create a user 'db-admin' who has full control over VMs only in the 'ha-db' namespace.",
+          "title": "Database Node Template",
+          "notice": "Create a template from 'db-node1' for future database deployments. Perform actions in the 'shared-db' namespace.",
           "subtasks": [
-            "Create a user named 'db-admin'.",
-            "Create a Role in the 'ha-db' namespace that grants all verbs ('*') on 'virtualmachines', 'virtualmachineinstances', and 'datavolumes' resources.",
-            "Create a RoleBinding to bind this new role to the 'db-admin' user within the 'ha-db' namespace."
+            "Generate a template named 'db-node-template' from the 'db-node1' VM.",
+            "Modify the template to use cloud-init to set a custom SSH key for the 'cloud-user'."
           ]
         }
       ]
     },
     {
       "id": "task07",
-      "title": "Perform node maintenance on a database node",
+      "title": "Perform a Snapshot and Restore of a Database Node",
       "sections": [
         {
-          "title": "Node Drain and Eviction Strategy",
-          "notice": "One of the database VMs must be live-migrated when its node is drained for maintenance.",
+          "title": "Backup and Recovery Drill",
+          "notice": "Test the snapshot functionality on 'db-node2'. Perform actions in the 'shared-db' namespace.",
           "subtasks": [
-            "Identify the node where the 'db-main' VM is running.",
-            "Edit the 'db-main' VM and set its 'evictionStrategy' to 'LiveMigrate'.",
-            "Drain the identified node, making sure to use flags that respect PodDisruptionBudgets and gracefully handle workloads.",
-            "Verify that 'db-main' was successfully live-migrated to another node."
+            "Create a snapshot of the 'db-node2' VM.",
+            "Delete the VM after the snapshot is complete.",
+            "Restore the VM from the snapshot."
           ]
         }
       ]
     },
     {
       "id": "task08",
-      "title": "Configure a watchdog device for the database VMs",
+      "title": "Clone the ERP VM for testing",
       "sections": [
         {
-          "title": "VM Health and Responsiveness",
-          "notice": "Ensure the database VMs will reboot if the guest OS hangs. Perform actions in the 'ha-db' namespace.",
+          "title": "Cloning for UAT",
+          "notice": "Create a clone of the 'legacy-erp' VM in a new 'erp-uat' namespace.",
           "subtasks": [
-            "Add a watchdog device to both 'db-main' and 'db-replica' VMs.",
-            "Configure the watchdog to use the 'i6300esb' model.",
-            "Log into one of the VMs and ensure the watchdog kernel module is loaded."
+            "Create a new namespace named 'erp-uat'.",
+            "Clone the 'legacy-erp' VM from the 'erp-prod' namespace into the 'erp-uat' namespace.",
+            "Name the new VM 'erp-uat-clone'."
           ]
         }
       ]
     },
     {
       "id": "task09",
-      "title": "Import an Open Virtual Appliance (OVA) image",
+      "title": "Configure a Multi-Homed Analytics VM",
       "sections": [
         {
-          "title": "OVA Import",
-          "notice": "A vendor has provided a firewall appliance as an OVA file hosted at http://example.com/firewall.ova. Import it into a new namespace 'security'.",
+          "title": "Multus and NMState Configuration",
+          "notice": "Deploy a VM in a new 'analytics' namespace that connects to a dedicated analytics network.",
           "subtasks": [
-            "Create a new namespace named 'security'.",
-            "Create a DataVolume in the 'security' namespace configured to import from the OVA URL.",
-            "The import process should create a VM named 'firewall-appliance'. Verify its creation."
+            "Create a new namespace named 'analytics'.",
+            "Use the NMState operator to create a new linux-bridge named 'br-analytics' on all worker nodes.",
+            "Create a NetworkAttachmentDefinition named 'analytics-net' that uses the 'br-analytics' bridge.",
+            "Deploy a VM named 'analytics-vm' and attach it to the 'analytics-net'."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Cancel a running live migration",
+      "title": "Perform Node Maintenance on an Analytics Node",
       "sections": [
         {
-          "title": "Migration Management",
-          "notice": "A live migration for 'db-replica' was started by mistake. Cancel it before it completes.",
+          "title": "Node Drain",
+          "notice": "The node hosting 'analytics-vm' must be drained for maintenance.",
           "subtasks": [
-            "Start a live migration for the 'db-replica' VM.",
-            "Quickly identify the 'VirtualMachineInstanceMigration' (VMIM) object associated with the migration.",
-            "Delete the VMIM object to cancel the migration process.",
-            "Verify the 'db-replica' VM is still running on its original node."
+            "Identify the node where 'analytics-vm' is running.",
+            "Drain the node, ensuring the VM is live-migrated without downtime."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Import an OVA Image",
+      "sections": [
+        {
+          "title": "Importing a Vendor Appliance",
+          "notice": "Import a vendor appliance from 'http://vendor.com/appliance.ova' into the 'analytics' namespace.",
+          "subtasks": [
+            "Create a DataVolume in the 'analytics' namespace configured to import from the OVA URL.",
+            "Verify the associated VM is created automatically."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Detach a Disk from the Analytics VM",
+      "sections": [
+        {
+          "title": "Storage Management",
+          "notice": "The 'analytics-vm' has a temporary disk that needs to be removed. Perform actions in the 'analytics' namespace.",
+          "subtasks": [
+            "Add a new 2Gi data volume to 'analytics-vm' named 'temp-data'.",
+            "Shut down the VM.",
+            "Remove the 'temp-data' volume from the VM definition.",
+            "Start the VM."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task13",
+      "title": "Install a custom package on the Analytics VM",
+      "sections": [
+        {
+          "title": "Basic System Administration",
+          "notice": "Install a custom analytics package on the 'analytics-vm'. To do this, first configure a custom repository inside the VM. Create the file '/etc/yum.repos.d/analytics.repo' with the following content: [analytics]\nname=Analytics Repo\nbaseurl=http://repo.example.com/analytics_packages\nenabled=1\ngpgcheck=0. Perform actions in the 'analytics' namespace.",
+          "subtasks": [
+            "Log into the 'analytics-vm'.",
+            "Install the 'custom-analytics-tool' package using the provided repository details."
           ]
         }
       ]

@@ -1,99 +1,96 @@
 {
   "examId": "ex316-5",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 5: Full Spectrum Review",
-  "description": "This exam is a comprehensive review of all major domains, requiring you to switch between different skill sets quickly.",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 5: Full Spectrum Exam V",
+  "description": "A comprehensive 14-task exam covering a wide range of objectives, requiring you to switch between different skill sets quickly.",
   "timeLimit": "4 hours",
   "tasks": [
     {
       "id": "task01",
-      "title": "Deploy and configure a multi-tier application",
+      "title": "Deploy a multi-tier application across three namespaces",
       "sections": [
         {
-          "title": "Web and Database Tiers",
-          "notice": "Deploy a web server and a database server, each in its own namespace.",
+          "title": "Web, API, and Database Tiers",
+          "notice": "Deploy a web server, an API server, and a database, each in its own namespace: 'front-end', 'api-layer', and 'data-tier'.",
           "subtasks": [
-            "Create a namespace 'webapp-prod'.",
-            "Create a namespace 'db-prod'.",
-            "In 'webapp-prod', deploy a VM named 'webapp-vm' from a RHEL9 template. Inside the VM, install and enable 'httpd'.",
-            "In 'db-prod', deploy a VM named 'db-vm' from a RHEL9 template. Inside the VM, install and enable 'postgresql-server'."
+            "Create the three namespaces: 'front-end', 'api-layer', and 'data-tier'.",
+            "In 'front-end', deploy a VM named 'frontend-vm' and install 'nginx'.",
+            "In 'api-layer', deploy a VM named 'api-vm' and install a basic Python Flask application.",
+            "In 'data-tier', deploy a VM named 'data-vm' and install 'redis'."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Configure inter-namespace networking and security",
+      "title": "Configure networking and security between the application tiers",
       "sections": [
         {
           "title": "Services and Network Policies",
-          "notice": "The web app must connect to the database, but no other pods should be able to.",
+          "notice": "The frontend must talk to the API, and the API must talk to the database. No other communication should be allowed.",
           "subtasks": [
-            "In the 'db-prod' namespace, create a ClusterIP service named 'db-svc' for the 'db-vm' on port 5432.",
-            "In the 'db-prod' namespace, create a NetworkPolicy that allows ingress traffic to 'db-vm' only from pods in the 'webapp-prod' namespace.",
-            "In the 'webapp-prod' namespace, expose the 'webapp-vm' with a NodePort service."
+            "In 'api-layer', create a ClusterIP service for 'api-vm' on port 5000.",
+            "In 'data-tier', create a ClusterIP service for 'data-vm' on port 6379.",
+            "Create a NetworkPolicy in 'api-layer' to only allow ingress from 'front-end'.",
+            "Create a NetworkPolicy in 'data-tier' to only allow ingress from 'api-layer'."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Configure persistent storage and disk mounting for the database",
+      "title": "Configure persistent storage for the database",
       "sections": [
         {
           "title": "Disk Management",
-          "notice": "Add a dedicated disk for PostgreSQL data on 'db-vm'. Perform actions in the 'db-prod' namespace.",
+          "notice": "Add a dedicated disk for Redis data on 'data-vm'. Perform actions in the 'data-tier' namespace.",
           "subtasks": [
-            "Create a 30Gi PVC named 'pg-data-pvc'.",
-            "Attach this PVC as a data volume to the 'db-vm'.",
-            "Log into the 'db-vm' guest OS.",
-            "Create a new logical volume and format it with ext4.",
-            "Mount the filesystem persistently on '/var/lib/pgsql'."
+            "Create a 10Gi PVC named 'redis-data-pvc'.",
+            "Attach this PVC as a data volume to the 'data-vm'.",
+            "Log into the 'data-vm' and configure Redis to use the new disk for its data directory."
           ]
         }
       ]
     },
     {
       "id": "task04",
-      "title": "Create a custom template from the web server VM",
+      "title": "Create a custom template from the API server VM",
       "sections": [
         {
           "title": "Template Generation",
-          "notice": "Create a reusable template from the configured 'webapp-vm'. Perform actions in a new 'app-templates' namespace.",
+          "notice": "Create a reusable template from the configured 'api-vm'. Perform actions in a new 'global-templates' namespace.",
           "subtasks": [
-            "Create a new namespace named 'app-templates'.",
-            "Generate a new template named 'frontend-template' from the 'webapp-vm' in the 'webapp-prod' namespace.",
-            "Modify the template to add a parameter for the application version, to be used as a label on the VM."
+            "Create a new namespace named 'global-templates'.",
+            "Generate a new template named 'api-server-template' from the 'api-vm'."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Deploy a staging version of the web app from the template",
+      "title": "Deploy a staging version of the API server from the template",
       "sections": [
         {
-          "title": "Template Deployment",
-          "notice": "Use the new template to deploy a staging instance in a new 'webapp-staging' namespace.",
+          "title": "Template Deployment with Cloud-Init",
+          "notice": "Deploy a staging API server in a new 'api-staging' namespace and use cloud-init to set a version flag.",
           "subtasks": [
-            "Create a new namespace named 'webapp-staging'.",
-            "Deploy a new VM named 'webapp-staging-vm' from the 'frontend-template'.",
-            "Provide 'v1.1-staging' as the application version parameter during deployment."
+            "Create a new namespace named 'api-staging'.",
+            "Deploy a new VM named 'api-staging-vm' from the 'api-server-template'.",
+            "Use cloud-init to create a file '/etc/app_version' with the content 'staging'."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Perform a snapshot and restore of the staging web server",
+      "title": "Perform a snapshot and restore of the staging API server",
       "sections": [
         {
           "title": "Snapshot and Restore",
-          "notice": "Test disaster recovery on the staging VM. Perform actions in the 'webapp-staging' namespace.",
+          "notice": "Test disaster recovery on the staging VM. Perform actions in the 'api-staging' namespace.",
           "subtasks": [
-            "Create a snapshot of 'webapp-staging-vm'.",
+            "Create a snapshot of 'api-staging-vm'.",
             "Delete the VM after the snapshot is complete.",
-            "Restore the VM from the snapshot.",
-            "Verify the VM is running correctly."
+            "Restore the VM from the snapshot."
           ]
         }
       ]
@@ -104,25 +101,24 @@
       "sections": [
         {
           "title": "VM Cloning",
-          "notice": "Create a clone of the production database 'db-vm' for developers in a new 'db-dev' namespace.",
+          "notice": "Create a clone of the production database 'data-vm' for developers in a new 'data-dev' namespace.",
           "subtasks": [
-            "Create a new namespace named 'db-dev'.",
-            "Create a clone of the 'db-vm' from the 'db-prod' namespace into the 'db-dev' namespace.",
-            "Name the new VM 'db-dev-clone'.",
-            "Verify the clone starts and is functional."
+            "Create a new namespace named 'data-dev'.",
+            "Clone the 'data-vm' from the 'data-tier' namespace into the 'data-dev' namespace.",
+            "Name the new VM 'data-dev-clone'."
           ]
         }
       ]
     },
     {
       "id": "task08",
-      "title": "Perform a live migration of the production database",
+      "title": "Perform a live migration of the production frontend",
       "sections": [
         {
           "title": "Live Migration",
-          "notice": "The node hosting 'db-vm' needs urgent maintenance. Migrate the VM without downtime.",
+          "notice": "The node hosting 'frontend-vm' needs urgent maintenance. Migrate the VM without downtime.",
           "subtasks": [
-            "Initiate a live migration for the 'db-vm' in the 'db-prod' namespace.",
+            "Initiate a live migration for the 'frontend-vm'.",
             "Monitor the migration process to ensure it completes successfully."
           ]
         }
@@ -130,30 +126,85 @@
     },
     {
       "id": "task09",
-      "title": "Configure RBAC for a junior web administrator",
+      "title": "Configure RBAC for a frontend developer",
       "sections": [
         {
           "title": "User Access Control",
-          "notice": "Create a user 'web-jr-admin' who can only view and restart web app VMs in both 'webapp-prod' and 'webapp-staging' namespaces.",
+          "notice": "Create a user 'frontend-dev' who can only manage VMs in the 'front-end' namespace.",
           "subtasks": [
-            "Create a user named 'web-jr-admin'.",
-            "Create a ClusterRole that allows 'get', 'list', 'watch' on VirtualMachines, and 'update' on the 'restart' subresource.",
-            "Create RoleBindings in both the 'webapp-prod' and 'webapp-staging' namespaces to grant this ClusterRole to the 'web-jr-admin' user."
+            "Create a user named 'frontend-dev'.",
+            "Create a Role in the 'front-end' namespace that grants full control over VirtualMachine resources.",
+            "Bind this Role to the 'frontend-dev' user in that namespace."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Configure a health probe for the production database VM",
+      "title": "Configure a health probe for the API server",
       "sections": [
         {
           "title": "Liveness Probe",
-          "notice": "Ensure the 'db-vm' is automatically restarted if PostgreSQL is unresponsive. Perform actions in the 'db-prod' namespace.",
+          "notice": "Ensure the 'api-vm' is automatically restarted if the Flask application is unresponsive.",
           "subtasks": [
-            "Edit the 'db-vm' VirtualMachine resource.",
-            "Add a liveness probe that performs a TCP socket check on port 5432.",
-            "Set an appropriate initial delay and failure threshold."
+            "Edit the 'api-vm' VirtualMachine resource.",
+            "Add a liveness probe that performs an HTTP GET request on port 5000."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Expose the frontend with a Route",
+      "sections": [
+        {
+          "title": "External Access",
+          "notice": "Expose the 'frontend-vm' externally using a Route. Perform actions in the 'front-end' namespace.",
+          "subtasks": [
+            "Create a ClusterIP service for 'frontend-vm' on port 80.",
+            "Create a Route that exposes this service to the public."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Install a custom package on the API server",
+      "sections": [
+        {
+          "title": "System Administration",
+          "notice": "Install a performance monitoring tool on the 'api-vm'. To do this, first configure a custom repository inside the VM. Create a file at '/etc/yum.repos.d/perf.repo' with the content: [perf-tools]\nname=Performance Tools\nbaseurl=http://repo.example.com/perf_tools\nenabled=1\ngpgcheck=0",
+          "subtasks": [
+            "Log into the 'api-vm'.",
+            "Install the 'perf-agent' package using the provided repository details."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task13",
+      "title": "Prepare a node for maintenance",
+      "sections": [
+        {
+          "title": "Node Drain",
+          "notice": "A worker node needs to be rebooted. Safely drain it of all VMs.",
+          "subtasks": [
+            "Select a worker node running at least one VM.",
+            "Use 'oc adm drain' to gracefully evict all VMs from the node."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task14",
+      "title": "Backup the entire multi-tier application using OADP",
+      "sections": [
+        {
+          "title": "Multi-Namespace Backup",
+          "notice": "Create a single backup that includes the 'front-end', 'api-layer', and 'data-tier' namespaces.",
+          "subtasks": [
+            "Create a 'Backup' resource that includes all three namespaces.",
+            "Verify the backup completes successfully."
           ]
         }
       ]

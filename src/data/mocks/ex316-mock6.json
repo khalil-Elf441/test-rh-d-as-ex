@@ -1,169 +1,194 @@
+
 {
   "examId": "ex316-6",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 6: Troubleshooting and Advanced Features",
-  "description": "This final exam tests your ability to troubleshoot complex issues and use advanced or less common features of OpenShift Virtualization.",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 6: Full Spectrum Exam VI",
+  "description": "A final, comprehensive 13-task exam focusing on troubleshooting, advanced features, and complex multi-step scenarios.",
   "timeLimit": "4 hours",
   "tasks": [
     {
       "id": "task01",
-      "title": "Troubleshoot a VM that fails to start due to a misconfigured NetworkPolicy",
+      "title": "Troubleshoot and fix a VM failing to start",
       "sections": [
         {
-          "title": "Debugging Network Policy",
-          "notice": "In a new namespace 'corp-api', a pre-existing NetworkPolicy is blocking a new VM from starting correctly. Find and fix the issue.",
+          "title": "Debugging a CrashLoopBackOff",
+          "notice": "In a new namespace 'troubleshooting', a VM is failing to start. Diagnose and fix the issue.",
           "subtasks": [
-            "Create a new namespace named 'corp-api'.",
-            "A NetworkPolicy named 'default-deny-all' has been pre-created in this namespace. Inspect it.",
-            "Deploy a new VM named 'backend-vm' that needs to contact an external service on port 443 to boot.",
-            "Observe that the VM fails its readiness checks.",
-            "Create a new NetworkPolicy to allow egress traffic on port 443 for the 'backend-vm', allowing it to start."
+            "Create the 'troubleshooting' namespace.",
+            "A VM named 'failing-vm' has been pre-defined to reference a non-existent secret. Deploy it.",
+            "Observe the virt-launcher pod enters a 'CrashLoopBackOff' state.",
+            "Examine the pod logs to identify the error related to the missing secret.",
+            "Create the required secret named 'vm-secret'.",
+            "Verify the VM now starts correctly."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Access a VM with a broken network interface using its serial console",
+      "title": "Access a VM with a broken network using the serial console",
       "sections": [
         {
-          "title": "Serial Console Access",
-          "notice": "An administrator has accidentally misconfigured the network interface of 'backend-vm' from within the guest OS. You can no longer SSH into it. Perform actions in the 'corp-api' namespace.",
+          "title": "Serial Console Recovery",
+          "notice": "The network on 'failing-vm' has been misconfigured from inside the guest. Regain access and fix it.",
           "subtasks": [
-            "Use the 'virtctl console' command to access the serial console of the 'backend-vm' VM.",
-            "Log into the VM using the console.",
-            "Diagnose and repair the network configuration file within the guest OS.",
-            "Reboot the VM and verify that it now has network connectivity."
+            "Use 'virtctl console failing-vm' to access the serial console.",
+            "Log in and correct the network configuration files within the guest OS.",
+            "Reboot the VM and confirm network connectivity is restored."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Upload a custom disk image to a PVC using 'virtctl'",
+      "title": "Configure a high-performance VM with SR-IOV and dedicated CPUs",
       "sections": [
         {
-          "title": "CLI Image Upload",
-          "notice": "You have been given a custom OS image file named 'custom.qcow2'. In a new namespace 'custom-images', upload it to a PVC to be used by a new VM.",
+          "title": "SR-IOV and CPU Pinning",
+          "notice": "In a new namespace 'hpc-apps', deploy a VM requiring maximum network and CPU performance.",
           "subtasks": [
-            "Create a new namespace named 'custom-images'.",
-            "Create a new, blank 20Gi PVC named 'custom-os-pvc'.",
-            "Use the 'virtctl image-upload' command to upload the 'custom.qcow2' file to the PVC.",
-            "Deploy a new VM named 'custom-vm' that uses this PVC as its boot disk."
+            "Create the 'hpc-apps' namespace.",
+            "Ensure an SR-IOV network is available.",
+            "Deploy a VM named 'hpc-vm' attached to the SR-IOV network.",
+            "Configure the VM with dedicated CPU resources and guaranteed QoS.",
+            "Attach a 50Gi block-mode PVC for high-speed data access."
           ]
         }
       ]
     },
     {
       "id": "task04",
-      "title": "Configure a VM to use SR-IOV for high-performance networking",
+      "title": "Configure a custom Route and RBAC for the HPC application",
       "sections": [
         {
-          "title": "SR-IOV Configuration",
-          "notice": "A network-intensive application requires the low latency provided by an SR-IOV virtual function. Deploy it in a new namespace 'hpc-workloads'.",
+          "title": "Service, Route, and User Management",
+          "notice": "Expose the HPC application and create a limited-access user. Perform actions in the 'hpc-apps' namespace.",
           "subtasks": [
-            "Create a new namespace named 'hpc-workloads'.",
-            "Ensure the SR-IOV Network Operator is installed and has configured VFs on a worker node.",
-            "Create a NetworkAttachmentDefinition for the SR-IOV network pool.",
-            "Create a new VM named 'sriov-vm' in the 'hpc-workloads' namespace.",
-            "Add a network interface to the VM that is attached to the SR-IOV NAD."
+            "Create a ClusterIP service for 'hpc-vm'.",
+            "Create a Route with a custom path of '/hpc/data' that points to the service.",
+            "Create a user 'hpc-user' who has view-only access to all resources in the 'hpc-apps' namespace."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Troubleshoot a live migration that fails due to incompatible CPU models",
+      "title": "Troubleshoot a failing live migration",
       "sections": [
         {
-          "title": "Debugging Migration Failure",
-          "notice": "A live migration is failing for a VM with a specific CPU model. Perform actions in the 'hpc-workloads' namespace.",
+          "title": "Debugging Migration",
+          "notice": "The 'hpc-vm' cannot be live migrated. Find out why and fix it.",
           "subtasks": [
-            "Edit the 'sriov-vm' to request a CPU feature that is not available on all nodes.",
-            "Attempt to live migrate the VM to a node with an incompatible CPU.",
-            "Examine the VMI events and virt-handler logs to diagnose the failure reason.",
-            "Change the VM's CPU model to a more generic one (like 'host-model') and successfully complete the migration."
+            "Attempt to live migrate 'hpc-vm'. Observe that it fails.",
+            "Examine the logs and events to determine the cause (e.g., SR-IOV interfaces are not migratable by default).",
+            "Temporarily remove the SR-IOV interface from the VM definition.",
+            "Successfully perform the live migration."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Configure disk I/O throttling and RBAC for a user",
+      "title": "Backup and Restore the HPC VM to a different StorageClass",
       "sections": [
         {
-          "title": "Resource Limiting and User Permissions",
-          "notice": "A user 'developer' is deploying resource-intensive VMs. Limit their disk I/O and restrict their permissions in a new namespace 'dev-sandbox'.",
+          "title": "OADP Storage Tier Migration",
+          "notice": "Move the 'hpc-vm' from a fast StorageClass to a slower, cheaper one for archival.",
           "subtasks": [
-            "Create a new namespace named 'dev-sandbox'.",
-            "Create a user named 'developer'.",
-            "Create a Role that allows the user to create and manage VMs, but not services or routes.",
-            "Bind this role to the 'developer' user in the 'dev-sandbox' namespace.",
-            "Deploy a VM named 'dev-vm' in the namespace.",
-            "Edit the VM to set a disk I/O limit (tps) of 100 on its primary disk."
+            "Backup the 'hpc-vm' using OADP.",
+            "Delete the original VM and its PVCs.",
+            "Restore the VM from backup, using 'storageClassMapping' to change the destination StorageClass.",
+            "Verify the restored VM is running on storage from the new, slower StorageClass."
           ]
         }
       ]
     },
     {
       "id": "task07",
-      "title": "Configure a VM to use a container image as its root disk",
+      "title": "Create a VM from a container disk image",
       "sections": [
         {
           "title": "ContainerDisk VM",
-          "notice": "Deploy a lightweight VM whose operating system is stored in a container image. Perform actions in the 'dev-sandbox' namespace.",
+          "notice": "Deploy a lightweight VM whose OS is stored in a container image. Perform actions in a new 'container-vms' namespace.",
           "subtasks": [
-            "Find a suitable container disk image from a public registry.",
-            "Create a new VirtualMachine resource named 'container-disk-vm'.",
-            "In the volumes section, define a 'containerDisk' volume pointing to the image URL.",
-            "Configure this volume as the VM's boot disk and start the VM."
+            "Create the 'container-vms' namespace.",
+            "Find a suitable container disk image.",
+            "Create a VM named 'container-vm' that uses the container disk as its root volume."
           ]
         }
       ]
     },
     {
       "id": "task08",
-      "title": "Troubleshoot a VM that has a 'CrashLoopBackOff' status",
+      "title": "Upload a local image file to a PVC",
       "sections": [
         {
-          "title": "Pod-Level Debugging",
-          "notice": "The virt-launcher pod for a VM is continuously crashing. Find and fix the root cause in the 'dev-sandbox' namespace.",
+          "title": "Virtctl Image Upload",
+          "notice": "Upload a local file 'special.img' to a PVC in the 'container-vms' namespace.",
           "subtasks": [
-            "Create a VM that references a non-existent ConfigMap as a volume to induce an error.",
-            "Observe the 'CrashLoopBackOff' status on the virt-launcher pod.",
-            "Use 'oc logs' on the pod to find the error message related to the missing resource.",
-            "Correct the VM definition by removing the invalid volume and verify it starts."
+            "Create a new 10Gi PVC named 'upload-pvc'.",
+            "Use 'virtctl image-upload' to upload the local 'special.img' file to the PVC.",
+            "Attach the populated PVC as a secondary disk to the 'container-vm'."
           ]
         }
       ]
     },
     {
       "id": "task09",
-      "title": "Use 'virtctl' to expose a VM service on a random port",
+      "title": "Change the default boot order of a VM",
       "sections": [
         {
-          "title": "CLI Service Exposure",
-          "notice": "Quickly expose a port on 'dev-vm' for temporary access without writing a full Service manifest. Perform actions in the 'dev-sandbox' namespace.",
+          "title": "PXE Boot Simulation",
+          "notice": "Configure a VM to boot from its network interface first. Perform actions in the 'container-vms' namespace.",
           "subtasks": [
-            "Use the 'virtctl expose' command on the 'dev-vm' VM.",
-            "Specify the VM name, a target port of 8080, and set the type to 'NodePort'.",
-            "Verify a service is created and the VM is accessible via the assigned node port."
+            "Edit the 'container-vm'.",
+            "Set the boot order for its primary network interface to 1.",
+            "Set the boot order for its disk to 2.",
+            "Start the VM and observe from the console that it attempts to PXE boot."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Change the default boot order of a VM",
+      "title": "Perform an offline snapshot and clone from it",
       "sections": [
         {
-          "title": "Boot Order Configuration",
-          "notice": "A VM needs to boot from a secondary network interface to receive a PXE boot image. Perform actions in the 'dev-sandbox' namespace.",
+          "title": "Snapshot and Clone",
+          "notice": "Create a new VM from a snapshot of 'container-vm'. Perform actions in the 'container-vms' namespace.",
           "subtasks": [
-            "Create a VM with a standard disk and a secondary network interface.",
-            "Edit the VirtualMachine resource.",
-            "In the 'domain.devices' section, set the boot order for the network interface to 1.",
-            "Set the boot order for the disk to 2.",
-            "Start the VM and observe from the console that it attempts to PXE boot first."
+            "Shut down the 'container-vm'.",
+            "Create a snapshot of the VM.",
+            "Create a new VM named 'clone-from-snap' whose source is the created snapshot.",
+            "Verify the new VM starts correctly."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Install a package from a custom repo",
+      "sections": [
+        {
+          "title": "System Administration",
+          "notice": "Install a tool on 'clone-from-snap'. To do this, first configure a custom repository inside the VM. Create a repo file '/etc/yum.repos.d/local.repo' with content: [local]\nname=Local Tools\nbaseurl=http://repo.example.com/local_tools\nenabled=1\ngpgcheck=0. Perform actions in the 'container-vms' namespace.",
+          "subtasks": [
+            "Log into 'clone-from-snap'.",
+            "Install the 'sys-admin-tool' package using the provided repository details."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Forcefully delete a stuck VM",
+      "sections": [
+        {
+          "title": "Force Deletion",
+          "notice": "A VM is stuck in a terminating state. Forcefully remove it.",
+          "subtasks": [
+            "Create a temporary VM and then try to delete it while it is still starting up to simulate a stuck state.",
+            "When it fails to delete, use 'virtctl stop' with the '--force' option and a grace period of 0.",
+            "Verify the VM and its pod are removed."
           ]
         }
       ]
