@@ -277,7 +277,9 @@
           "notice": "Configure the CPU and memory for the VM.",
           "subtasks": [
             "Set the number of CPUs to 2.",
-            "Set the memory to 4Gi."
+            "Set the memory to 4Gi.",
+            "subtask 3",
+            "subtask 4"
           ]
         },
         {
@@ -285,7 +287,9 @@
           "notice": "Configure the disk for the VM.",
           "subtasks": [
             "Add a new 10Gi disk.",
-            "Set the disk bus to 'sata'."
+            "Set the disk bus to 'sata'.",
+            "subtask 3",
+            "subtask 4"
           ]
         }
       ]
