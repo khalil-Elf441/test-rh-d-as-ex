@@ -2,6 +2,7 @@
   "examId": "ex316-3",
   "title": "OpenShift Virtualization Specialist (EX316) — Mock 3: Final Version",
   "description": "A comprehensive exam focusing on storage management, template customization, and disaster recovery using OADP.",
+  "timeLimit": "4h",
   "prerequisites": "# This script should be run once before starting the exam.\n\necho \"Creating prerequisite resources for Mock 3...\"\n\n# This mock requires the OADP Operator and a configured backup location.\n# The user is expected to install the operator as part of the exam.\n\necho \"Prerequisite setup complete.\"\n",
   "tasks": [
     {

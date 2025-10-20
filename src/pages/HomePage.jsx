@@ -19,9 +19,7 @@ const HomePage = () => {
   }, []);
 
   const openPrerequisites = (exam) => {
-    // Placeholder content for now. This will be replaced with actual data.
-    const content = `Prerequisites for ${exam.title}:\n\n# This script will be generated in the next step.\necho \"Setting up environment...\"`;
-    setModalContent(content);
+    setModalContent(exam.prerequisites);
     setIsModalOpen(true);
   };
 

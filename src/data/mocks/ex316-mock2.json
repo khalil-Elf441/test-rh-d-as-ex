@@ -2,6 +2,7 @@
   "examId": "ex316-2",
   "title": "OpenShift Virtualization Specialist (EX316) — Mock 2: Final Version",
   "description": "A comprehensive exam focusing on migration, high availability, and advanced networking.",
+  "timeLimit": "4h",
   "prerequisites": "# This script should be run once before starting the exam.\n\necho \"Creating prerequisite resources for Mock 2...\"\n\n# This mock requires the Migration Toolkit for Virtualization Operator.\n# It also assumes a mock vSphere environment is reachable, which we simulate via placeholders.\n\necho \"Prerequisite setup complete.\"\n",
   "tasks": [
     {

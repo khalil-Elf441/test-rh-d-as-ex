@@ -2,6 +2,7 @@
   "examId": "ex316-5",
   "title": "OpenShift Virtualization Specialist (EX316) — Mock 5: Final Version",
   "description": "A comprehensive exam covering a wide range of objectives, requiring you to switch between different skill sets quickly.",
+  "timeLimit": "4h",
   "prerequisites": "# This script should be run once before starting the exam.\n\necho \"Creating prerequisite resources for Mock 5...\"\n\n# No specific cluster-wide prerequisites for this mock.\n\necho \"Prerequisite setup complete.\"\n",
   "tasks": [
     {

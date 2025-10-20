@@ -2,6 +2,7 @@
   "examId": "ex316-4",
   "title": "OpenShift Virtualization Specialist (EX316) — Mock 4: Final Version",
   "description": "A comprehensive exam focusing on high availability, scheduling, and failure recovery.",
+  "timeLimit": "4h",
   "prerequisites": "# This script should be run once before starting the exam.\n\necho \"Creating prerequisite resources for Mock 4...\"\n\n# This mock requires nodes to be labeled for affinity tests.\noc label node <node-name-1> region=east --overwrite=true || true\noc label node <node-name-2> region=west --overwrite=true || true\n\necho \"Prerequisite setup complete.\"",
   "tasks": [
     {

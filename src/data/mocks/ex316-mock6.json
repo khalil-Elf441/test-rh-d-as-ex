@@ -2,6 +2,7 @@
   "examId": "ex316-6",
   "title": "OpenShift Virtualization Specialist (EX316) — Mock 6: Final Version",
   "description": "A final, comprehensive exam focusing on troubleshooting, advanced features, and complex multi-step scenarios.",
+  "timeLimit": "4h",
   "prerequisites": "# This script should be run once before starting the exam.\n\necho \"Creating prerequisite resources for Mock 6...\"\n\n# Pre-create a namespace with a restrictive policy to set up a troubleshooting task\noc create namespace troubleshooting || true\noc apply -f - <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: default-deny-all\n  namespace: troubleshooting\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  - Egress\nEOF\n\necho \"Prerequisite setup complete.\"\n",
   "tasks": [
     {
