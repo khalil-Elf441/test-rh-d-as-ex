@@ -80,7 +80,10 @@
       "sections": [
         {
           "title": "NetworkPolicy Configuration",
-          "notice": "Allow the web server to connect to the database.",
+          "notice": [
+            "Allow the web server to connect to the database.",
+            "To test the policy, you can use the following container image: 'registry.redhat.io/rhel8/support-tools'"
+          ],
           "subtasks": [
             "Create a NetworkPolicy in the 'db-app-ns' namespace.",
             "The policy must apply to the 'db-server' VM.",

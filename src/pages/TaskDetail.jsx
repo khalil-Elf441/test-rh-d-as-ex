@@ -45,7 +45,15 @@ const TaskDetail = () => {
       {task.sections.map((section, sectionIndex) => (
         <section key={sectionIndex} className="task-section">
           <h2 className="section-title">{section.title}</h2>
-          {section.notice && <p className="section-notice" dangerouslySetInnerHTML={{ __html: section.notice.replace(/\n/g, '<br />') }}></p>}
+          {section.notice && (
+            Array.isArray(section.notice) ? (
+              section.notice.map((n, i) => (
+                <p key={i} className="section-notice" dangerouslySetInnerHTML={{ __html: n.replace(/\n/g, '<br />') }}></p>
+              ))
+            ) : (
+              <p className="section-notice" dangerouslySetInnerHTML={{ __html: section.notice.replace(/\n/g, '<br />') }}></p>
+            )
+          )}
           
           <ul className="subtask-list">
             {section.subtasks.map((subtask, subtaskIndex) => (
