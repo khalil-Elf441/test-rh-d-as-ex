@@ -255,7 +255,7 @@
             "Stop the 'frontend-vm' VM if it is running.",
             "Modify the VM definition to set the runStrategy to 'Halted'.",
             "Verify that the runStrategy has been updated.",
-            "subtask 4"
+            "Attempt to start the VM and verify it does not start automatically."
           ]
         }
       ]

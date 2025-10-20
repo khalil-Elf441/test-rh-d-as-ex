@@ -278,8 +278,8 @@
           "subtasks": [
             "Set the number of CPUs to 2.",
             "Set the memory to 4Gi.",
-            "subtask 3",
-            "subtask 4"
+            "Enable CPU pinning for the VM.",
+            "Verify the CPU and memory allocation."
           ]
         },
         {
@@ -288,8 +288,8 @@
           "subtasks": [
             "Add a new 10Gi disk.",
             "Set the disk bus to 'sata'.",
-            "subtask 3",
-            "subtask 4"
+            "Format the disk with xfs filesystem.",
+            "Mount the disk to /data directory."
           ]
         }
       ]
