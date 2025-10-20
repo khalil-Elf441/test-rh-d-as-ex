@@ -209,6 +209,24 @@
           ]
         }
       ]
+    },
+    {
+      "id": "task13",
+      "title": "Troubleshoot a Failed VM Migration",
+      "solution": "# 1. Examine the Migration and Plan CRs to identify the error.\noc get migration -n openshift-mtv\noc describe migration <migration-name> -n openshift-mtv\n\n# 2. Identify the misconfigured NetworkMap or StorageMap.\noc get networkmap -n openshift-mtv\noc get storagemap -n openshift-mtv\n\n# 3. Edit the incorrect map to fix the destination network or storage class.\noc edit <map-type> <map-name> -n openshift-mtv\n\n# 4. Restart the migration by deleting the existing migration CR.\noc delete migration <migration-name> -n openshift-mtv\n# The plan will automatically trigger a new migration.\n\n# 5. Verify the migration succeeds.\noc get migration -n openshift-mtv -w\n",
+      "sections": [
+        {
+          "title": "Debugging a Failed Migration",
+          "notice": "A pre-configured VM migration has failed. Diagnose the problem, fix it, and ensure the VM is migrated successfully.",
+          "subtasks": [
+            "Inspect the 'Migration' and 'Plan' resources in the 'openshift-mtv' namespace to find the cause of the failure.",
+            "Identify the incorrect 'NetworkMap' or 'StorageMap' that is causing the issue.",
+            "Correct the misconfigured resource.",
+            "Delete the failed 'Migration' custom resource to automatically retry the migration.",
+            "Monitor the migration and verify the VM is successfully created in the target namespace."
+          ]
+        }
+      ]
     }
   ]
 }

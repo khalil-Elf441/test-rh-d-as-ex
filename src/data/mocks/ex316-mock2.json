@@ -212,7 +212,21 @@
     },
     {
       "id": "task13",
-      "title": "Install a custom package on the Analytics VM",
+      "title": "Configure a VM with Custom CPU and Memory",
+      "solution": "# 1. Stop the VM if it is running\noc virt stop analytics-vm -n analytics\n\n# 2. Patch the VM with custom CPU and memory settings\noc patch vm analytics-vm -n analytics --type merge -p '{\"spec\":{\"template\":{\"spec\":{\"domain\":{\"cpu\":{\"cores\":4},\"memory\":{\"guest\":\"8Gi\"}}}}}}'\n\n# 3. Start the VM\noc virt start analytics-vm -n analytics\n\n# 4. Verify the settings inside the VM\n# oc console analytics-vm -n analytics\n# lscpu | grep CPU(s):\n# free -h\n",
+      "sections": [
+        {
+          "title": "Custom Resource Allocation",
+          "notice": "Allocate specific CPU and memory resources to the 'analytics-vm'.",
+          "subtasks": [
+            "Stop the 'analytics-vm' VM.",
+            "Modify the VM definition to allocate 4 CPU cores and 8Gi of memory.",
+            "Start the VM.",
+            "Log into the VM and verify that the new CPU and memory settings have been applied."
+          ]
+        }
+      ]
+    },
       "solution": "# This task is performed inside the VM.\n# 1. Access the VM\noc console analytics-vm -n analytics\n\n# 2. Create repo file\nsudo -i\necho -e \"[datascience]\nname=Data Science Repo\nbaseurl=http://repo.example.com/datascience\nenabled=1\ngpgcheck=0\" > /etc/yum.repos.d/datascience.repo\n\n# 3. Install package\ndnf install -y python3-pandas\n\n# 4. Verify\nrpm -q python3-pandas\n",
       "sections": [
         {

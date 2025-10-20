@@ -65,11 +65,6 @@ const TaskDetail = () => {
       ))}
 
       <hr />
-      <div style={{ marginTop: '2rem' }}>
-        <Link to={`/solution/${examId}/${taskId}`} className="btn">
-          Show Solution
-        </Link>
-      </div>
     </div>
   );
 };
