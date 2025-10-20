@@ -55,6 +55,9 @@ const HomePage = () => {
                         <Link to={`/tasks/${exam.examId}`} className="btn">
                         {examStatuses[exam.examId] === 'In Progress' ? 'Continue Exam' : 'Start Exam'}
                         </Link>
+                        <Link to={`/solution/${exam.examId}`} className="btn" style={{ background: '#007bff' }}>
+                            Solutions
+                        </Link>
                         <button onClick={() => openPrerequisites(exam)} className="btn" style={{ background: '#6c757d' }}>
                             Prerequisites
                         </button>

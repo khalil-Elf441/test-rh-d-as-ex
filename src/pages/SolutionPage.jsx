@@ -1,34 +1,53 @@
-
-import React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { examDataMap } from '../data/examData';
-import NotFound from './NotFound';
 import Breadcrumbs from '../components/Breadcrumbs';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 const SolutionPage = () => {
-  const { examId, taskId } = useParams();
+  const { examId } = useParams();
   const currentExam = examDataMap[examId];
-  const task = currentExam?.tasks.find((t) => t.id === taskId);
+  const [completedTasks, setCompletedTasks] = useLocalStorage(`completedTasks_${examId}`, {});
 
-  if (!task || !currentExam) {
-    return <NotFound />;
+  if (!currentExam) {
+    return <div>Exam not found</div>;
   }
+
+  const handleTaskCompletion = (taskId) => {
+    setCompletedTasks(prev => ({
+      ...prev,
+      [taskId]: !prev[taskId]
+    }));
+  };
+
+  const score = Object.values(completedTasks).filter(Boolean).length;
+  const totalTasks = currentExam.tasks.length;
 
   return (
     <div>
-      <Breadcrumbs exam={currentExam} task={task} />
-      <div className="task-detail-header">
-        <h1>Solution: {task.title}</h1>
+      <Breadcrumbs exam={currentExam} />
+      <h1 className="page-title">{currentExam.title} - Solutions</h1>
+      <div className="solution-header">
+        <h2>Score: {score} / {totalTasks}</h2>
       </div>
-      <Link to={`/task/${examId}/${taskId}`} className="back-link" style={{marginBottom: '1.5rem'}}>
-        &larr; Back to Task Description
-      </Link>
       <hr />
-      <div style={{ marginTop: '1rem' }}>
-        <pre style={{ background: '#f4f4f4', padding: '1rem', borderRadius: '4px', border: '1px solid #ddd', whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
-            {task.solution || 'No solution provided for this task.'}
-        </pre>
-      </div>
+      {currentExam.tasks.map(task => (
+        <div key={task.id} className="solution-task-card">
+          <div className="solution-task-header">
+            <h3>{task.title}</h3>
+            <label>
+              <input
+                type="checkbox"
+                checked={!!completedTasks[task.id]}
+                onChange={() => handleTaskCompletion(task.id)}
+              />
+              Completed
+            </label>
+          </div>
+          <h4>Solution:</h4>
+          <pre className="solution-code">{task.solution}</pre>
+        </div>
+      ))}
     </div>
   );
 };

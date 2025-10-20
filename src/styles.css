@@ -235,3 +235,37 @@ hr {
   background-color: #005bb5;
   color: white;
 }
+
+/* --- Solution Page --- */
+.solution-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.solution-task-card {
+  background-color: #fff;
+  border: 1px solid var(--rh-border-color);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.solution-task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.solution-task-header h3 {
+  margin: 0;
+}
+
+.solution-code {
+  background-color: #f4f4f4;
+  padding: 1rem;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
