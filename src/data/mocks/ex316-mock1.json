@@ -185,7 +185,10 @@
       "sections": [
         {
           "title": "Multus Networking",
-          "notice": "Create a new VM that is connected to two different networks. Perform actions in a new 'multi-net-ns' namespace.",
+          "notice": [
+            "Create a new VM that is connected to two different networks. Perform actions in a new 'multi-net-ns' namespace.",
+            "The vlan ID is an example, you can use any valid vlan ID"
+            ],
           "subtasks": [
             "Create a new namespace named 'multi-net-ns'.",
             "Create a NetworkAttachmentDefinition named 'internal-net' for a linux-bridge network.",
@@ -260,6 +263,29 @@
             "Configure a 'Provider' resource to connect to the mock external hypervisor.",
             "Create a 'Plan' to migrate the 'vm-to-migrate' VM, mapping source networks and datastores.",
             "Execute the migration and verify the new VM is running in the 'migrated-vm-ns' namespace."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task16",
+      "title": "Advanced VM Configuration",
+      "solution": "# Solution for task 16",
+      "sections": [
+        {
+          "title": "Section 1: CPU and Memory",
+          "notice": "Configure the CPU and memory for the VM.",
+          "subtasks": [
+            "Set the number of CPUs to 2.",
+            "Set the memory to 4Gi."
+          ]
+        },
+        {
+          "title": "Section 2: Disk Configuration",
+          "notice": "Configure the disk for the VM.",
+          "subtasks": [
+            "Add a new 10Gi disk.",
+            "Set the disk bus to 'sata'."
           ]
         }
       ]
