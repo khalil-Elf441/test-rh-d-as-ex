@@ -1,277 +1,457 @@
 {
-  "examId": "ex316-7",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 7: Production Environment",
-  "description": "A comprehensive 15-task exam covering advanced virtualization scenarios including VM lifecycle management, storage configuration, networking, migration, and troubleshooting in production environments.",
+  "examId": "ex316-8",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 8: Advanced Enterprise Scenarios",
+  "description": "A comprehensive and challenging 15-task exam focusing on production-grade scenarios including advanced networking with Multus, external storage integration, VM migration from foreign hypervisors, health monitoring, OADP backup/restore, and complex troubleshooting scenarios.",
   "timeLimit": "4h",
-  "prerequisites": "# This script should be run once before starting the exam.\n# It simulates the base environment provided to the candidate.\n\necho \"Creating prerequisite resources for Mock 2...\"\n\n# Create a sample RHEL9 base image\noc create namespace openshift-virtualization-os-images 2>/dev/null || true\n\n# Assume default storage class is available\n# Assume OpenShift Virtualization operator is installed\n\necho \"Prerequisite setup complete. You can now start the exam.\"\n",
+  "prerequisites": "# Prerequisites setup script for Mock 8\n# This simulates a real production environment with external dependencies\n\necho \"Setting up advanced Mock 3 environment...\"\n\n# Ensure OpenShift Virtualization is installed\noc get hco -n openshift-cnv kubevirt-hyperconverged 2>/dev/null || echo \"Warning: OpenShift Virtualization not fully configured\"\n\n# Create base namespaces\noc create namespace virt-prod 2>/dev/null || true\noc create namespace virt-staging 2>/dev/null || true\noc create namespace legacy-migration 2>/dev/null || true\n\n# Simulate external storage availability\necho \"External NFS server available at: nfs-server.storage.example.com:/exports/vms\"\necho \"External iSCSI target available at: iscsi.storage.example.com:3260\"\n\n# Note: OADP operator should be pre-installed for backup tasks\n# Note: Migration Toolkit for Virtualization (MTV) should be available\n\necho \"Prerequisites complete. Environment ready for advanced tasks.\"\n",
   "tasks": [
     {
       "id": "task01",
-      "title": "Deploy OpenShift Virtualization and configure HyperConverged",
-      "solution": "# 1. Create namespace\noc create namespace openshift-cnv\n\n# 2. Install operator via OperatorHub\n# (This is done via UI or by creating Subscription resource)\noc create -f - <<EOF\napiVersion: operators.coreos.com/v1alpha1\nkind: Subscription\nmetadata:\n  name: kubevirt-hyperconverged\n  namespace: openshift-cnv\nspec:\n  channel: stable\n  name: kubevirt-hyperconverged\n  source: redhat-operators\n  sourceNamespace: openshift-marketplace\nEOF\n\n# 3. Wait for operator to be ready\noc wait --for=condition=Ready pod -l name=kubevirt-hyperconverged-operator -n openshift-cnv --timeout=300s\n\n# 4. Create HyperConverged instance\noc create -f - <<EOF\napiVersion: hco.kubevirt.io/v1beta1\nkind: HyperConverged\nmetadata:\n  name: kubevirt-hyperconverged\n  namespace: openshift-cnv\nspec: {}\nEOF\n\n# 5. Verify installation\noc get hco -n openshift-cnv\noc get csv -n openshift-cnv",
+      "title": "Configure VM with external NFS storage using Multus secondary network",
+      "solution": "# 1. Create NetworkAttachmentDefinition for storage network\noc create -f - -n virt-prod <<EOF\napiVersion: k8s.cni.cncf.io/v1\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: storage-network\nspec:\n  config: |\n    {\n      \"cniVersion\": \"0.3.1\",\n      \"name\": \"storage-network\",\n      \"type\": \"bridge\",\n      \"bridge\": \"br-storage\",\n      \"vlan\": 300,\n      \"ipam\": {\n        \"type\": \"static\",\n        \"addresses\": [\n          {\n            \"address\": \"192.168.100.50/24\",\n            \"gateway\": \"192.168.100.1\"\n          }\n        ]\n      }\n    }\nEOF\n\n# 2. Create PV for external NFS\noc create -f - <<EOF\napiVersion: v1\nkind: PersistentVolume\nmetadata:\n  name: nfs-vm-storage-pv\nspec:\n  capacity:\n    storage: 100Gi\n  accessModes:\n  - ReadWriteMany\n  nfs:\n    server: nfs-server.storage.example.com\n    path: /exports/vms\n  persistentVolumeReclaimPolicy: Retain\n  storageClassName: nfs-external\nEOF\n\n# 3. Create PVC\noc create -f - -n virt-prod <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: nfs-shared-data\nspec:\n  accessModes:\n  - ReadWriteMany\n  storageClassName: nfs-external\n  resources:\n    requests:\n      storage: 100Gi\nEOF\n\n# 4. Create VM with storage network and NFS volume\noc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: storage-client-vm\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: storage-client-vm\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: nfs-data\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n          - name: storage\n            bridge: {}\n        resources:\n          requests:\n            memory: 4Gi\n      networks:\n      - name: default\n        pod: {}\n      - name: storage\n        multus:\n          networkName: storage-network\n      volumes:\n      - name: rootdisk\n        containerDisk:\n          image: quay.io/containerdisks/fedora:latest\n      - name: nfs-data\n        persistentVolumeClaim:\n          claimName: nfs-shared-data\nEOF\n\n# 5. Verify VM has access to both networks and NFS mount\noc wait --for=condition=Ready vmi/storage-client-vm -n virt-prod --timeout=300s",
       "sections": [
         {
-          "title": "Operator Installation and Configuration",
-          "notice": "Install and configure OpenShift Virtualization. All resources should be created in the 'openshift-cnv' namespace.",
+          "title": "Advanced Multi-Network Storage Configuration",
+          "notice": "Configure a VM with dual network interfaces: default pod network and dedicated storage network. Mount external NFS storage accessible via the storage network. All work in 'virt-prod' namespace.",
           "subtasks": [
-            "Create the namespace 'openshift-cnv' if it doesn't exist.",
-            "Install the 'kubevirt-hyperconverged' operator from RedHat OperatorHub.",
-            "Create a HyperConverged resource named 'kubevirt-hyperconverged' with default configuration.",
-            "Verify all operator pods are running and the HyperConverged resource shows Available status."
+            "Create a NetworkAttachmentDefinition named 'storage-network' using bridge CNI with VLAN 300.",
+            "Configure static IP 192.168.100.50/24 with gateway 192.168.100.1 for the storage network.",
+            "Create a PersistentVolume 'nfs-vm-storage-pv' connecting to NFS server at nfs-server.storage.example.com:/exports/vms.",
+            "Create a PVC named 'nfs-shared-data' using storageClass 'nfs-external' requesting 100Gi.",
+            "Deploy VM 'storage-client-vm' with two network interfaces: default (masquerade) and storage (bridge).",
+            "Attach the NFS PVC as an additional disk to the VM.",
+            "Verify inside the VM that both network interfaces are active and NFS storage is accessible."
           ]
         }
       ]
     },
     {
       "id": "task02",
-      "title": "Create a VM using containerDisk image source",
-      "solution": "# 1. Create namespace\noc create namespace vm-apps\n\n# 2. Create VM with containerDisk\noc create -f - -n vm-apps <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: fedora-container-vm\n  labels:\n    app: fedora-vm\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: fedora-container-vm\n    spec:\n      domain:\n        cpu:\n          cores: 2\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 4Gi\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/fedora:latest\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            user: fedora\n            password: fedora123\n            chpasswd: { expire: False }\nEOF",
+      "title": "Implement VM template with advanced cloud-init and custom script injection",
+      "solution": "# 1. Create ConfigMap with custom scripts\noc create -f - -n virt-prod <<EOF\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: vm-init-scripts\ndata:\n  setup.sh: |\n    #!/bin/bash\n    # Configure custom repository\n    cat <<REPO > /etc/yum.repos.d/corporate.repo\n    [corporate-base]\n    name=Corporate Base Repository\n    baseurl=http://repo.corp.example.com/rhel/\\$releasever/\\$basearch/\n    enabled=1\n    gpgcheck=1\n    gpgkey=http://repo.corp.example.com/RPM-GPG-KEY-corporate\n    REPO\n    \n    # Install security packages\n    dnf install -y aide tripwire\n    \n    # Configure firewall\n    firewall-cmd --permanent --add-service=ssh\n    firewall-cmd --permanent --add-service=http\n    firewall-cmd --permanent --add-service=https\n    firewall-cmd --permanent --set-default-zone=public\n    firewall-cmd --reload\n    \n    # Enable SELinux enforcing\n    setenforce 1\n    sed -i 's/SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config\n    \n    # Create monitoring user\n    useradd -m -s /bin/bash monitor\n    echo \"monitor:Mon1tor123!\" | chpasswd\nEOF\n\n# 2. Create Template\noc process rhel9-secure-template -n virt-prod \\\n  -p VM_NAME=secure-web-01 \\\n  -p CPU_CORES=4 \\\n  -p MEMORY=8Gi | oc create -f -\n\n# 3. Start VM\noc virt start secure-web-01 -n virt-prod",
       "sections": [
         {
-          "title": "VM Provisioning with ContainerDisk",
-          "notice": "Create a Fedora VM using a container disk image. Perform all actions in the 'vm-apps' namespace.",
+          "title": "Advanced Template with Script Injection",
+          "notice": "Create a production-ready VM template with security hardening scripts. Work in 'virt-prod' namespace.",
           "subtasks": [
-            "Create a new namespace named 'vm-apps'.",
-            "Create a VM named 'fedora-container-vm' using the containerDisk from 'quay.io/containerdisks/fedora:latest'.",
-            "Configure the VM with 2 CPU cores and 4Gi of memory.",
-            "Set the VM to start automatically (running: true).",
-            "Use cloud-init to create a user 'fedora' with password 'fedora123'."
+            "Create ConfigMap 'vm-init-scripts' containing a bash script that configures corporate repository, installs security tools (aide, tripwire), hardens firewall, enables SELinux enforcing, and creates a monitoring user.",
+            "Create a Template named 'rhel9-secure-template' with parameters for VM_NAME, CPU_CORES, MEMORY, and auto-generated ROOT_PASSWORD.",
+            "Configure the template to use RHEL9 guest image from registry.redhat.io.",
+            "Inject cloud-init configuration that creates user 'sysadmin', installs required packages, and executes the custom script from ConfigMap.",
+            "Mount the ConfigMap as a volume so scripts are accessible during cloud-init.",
+            "Process the template to create VM 'secure-web-01' with 4 CPU cores and 8Gi memory.",
+            "Start the VM and verify all security configurations are applied correctly."
           ]
         }
       ]
     },
     {
       "id": "task03",
-      "title": "Import a VM disk image using DataVolume",
-      "solution": "# 1. Create DataVolume\noc create -f - -n vm-apps <<EOF\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: rhel9-golden-image\nspec:\n  source:\n    http:\n      url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2\n  pvc:\n    accessModes:\n    - ReadWriteMany\n    resources:\n      requests:\n        storage: 30Gi\n    storageClassName: ocs-storagecluster-ceph-rbd\nEOF\n\n# 2. Monitor import\noc get dv rhel9-golden-image -n vm-apps -w",
+      "title": "Configure watchdog device and readiness probe for high-availability VM",
+      "solution": "# 1. Create VM with watchdog and health probes\noc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: ha-database-vm\n  labels:\n    app: database\n    tier: backend\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: ha-database-vm\n        app: database\n    spec:\n      domain:\n        cpu:\n          cores: 4\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: datadisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n          watchdog:\n            name: watchdog0\n            i6300esb:\n              action: reset\n        resources:\n          requests:\n            memory: 8Gi\n            cpu: 2000m\n          limits:\n            memory: 16Gi\n            cpu: 4000m\n      readinessProbe:\n        tcpSocket:\n          port: 5432\n        initialDelaySeconds: 120\n        periodSeconds: 20\n        timeoutSeconds: 10\n        failureThreshold: 3\n      livenessProbe:\n        tcpSocket:\n          port: 5432\n        initialDelaySeconds: 180\n        periodSeconds: 30\n        timeoutSeconds: 10\n        failureThreshold: 5\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: ha-database-vm-root\n      - name: datadisk\n        persistentVolumeClaim:\n          claimName: database-data-volume\n  dataVolumeTemplates:\n  - metadata:\n      name: ha-database-vm-root\n    spec:\n      source:\n        http:\n          url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2\n      pvc:\n        accessModes:\n        - ReadWriteOnce\n        resources:\n          requests:\n            storage: 40Gi\nEOF\n\n# 2. Create data volume PVC\noc create -f - -n virt-prod <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: database-data-volume\nspec:\n  accessModes:\n  - ReadWriteOnce\n  resources:\n    requests:\n      storage: 100Gi\nEOF",
       "sections": [
         {
-          "title": "DataVolume Import",
-          "notice": "Import a RHEL9-compatible cloud image for use as a base image. Work in the 'vm-apps' namespace.",
+          "title": "High-Availability VM with Health Monitoring",
+          "notice": "Deploy a database VM with watchdog device and health probes for automatic recovery. Work in 'virt-prod' namespace.",
           "subtasks": [
-            "Create a DataVolume named 'rhel9-golden-image'.",
-            "Import the image from URL: 'https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2'.",
-            "Use storage class 'ocs-storagecluster-ceph-rbd' with 30Gi capacity.",
-            "Set accessMode to ReadWriteMany to allow multiple VMs to use this as a base.",
-            "Wait for the import to complete successfully."
+            "Create VM 'ha-database-vm' with 4 CPU cores, 8Gi memory request, 16Gi memory limit.",
+            "Configure i6300esb watchdog device with 'reset' action to automatically restart on hang.",
+            "Add readiness probe checking TCP port 5432 (PostgreSQL): 120s initial delay, 20s period, 3 failure threshold.",
+            "Add liveness probe checking TCP port 5432: 180s initial delay, 30s period, 5 failure threshold.",
+            "Create a 100Gi PVC 'database-data-volume' for PostgreSQL data.",
+            "Attach both root disk (from DataVolume) and data disk (from PVC) to the VM.",
+            "After VM starts, install PostgreSQL, initialize database, and enable watchdog service in guest OS.",
+            "Verify probes report Ready status and watchdog device is functional."
           ]
         }
       ]
     },
     {
       "id": "task04",
-      "title": "Deploy a production web server VM with cloud-init customization",
-      "solution": "# 1. Create namespace\noc create namespace production\n\n# 2. Create VM with cloud-init\noc create -f - -n production <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: web-prod-01\n  labels:\n    app: webserver\n    env: production\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: web-prod-01\n    spec:\n      domain:\n        cpu:\n          cores: 2\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 4Gi\n            cpu: 1000m\n          limits:\n            memory: 8Gi\n            cpu: 2000m\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: web-prod-01-disk\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            hostname: web-prod-01.example.com\n            user: admin\n            password: RedHat123!\n            chpasswd: { expire: False }\n            packages:\n              - httpd\n              - mod_ssl\n            runcmd:\n              - systemctl enable --now httpd\n              - firewall-cmd --permanent --add-service=http\n              - firewall-cmd --permanent --add-service=https\n              - firewall-cmd --reload\n---\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: web-prod-01-disk\n  namespace: production\nspec:\n  source:\n    pvc:\n      namespace: vm-apps\n      name: rhel9-golden-image\n  pvc:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 30Gi\nEOF",
+      "title": "Migrate legacy VM from VMware vSphere using Migration Toolkit",
+      "solution": "# 1. Create namespace for migration\noc create namespace legacy-migration\n\n# 2. Create Secret for VMware credentials\noc create secret generic vmware-credentials \\\n  --from-literal=user=administrator@vsphere.local \\\n  --from-literal=password=VMware123! \\\n  --from-literal=url=https://vcenter.corp.example.com/sdk \\\n  -n openshift-mtv\n\n# 3. Create Provider for source VMware\noc create -f - <<EOF\napiVersion: forklift.konveyor.io/v1beta1\nkind: Provider\nmetadata:\n  name: vmware-source\n  namespace: openshift-mtv\nspec:\n  type: vsphere\n  url: https://vcenter.corp.example.com/sdk\n  secret:\n    name: vmware-credentials\n    namespace: openshift-mtv\nEOF\n\n# 4. Create Migration Plan\noc create -f - <<EOF\napiVersion: forklift.konveyor.io/v1beta1\nkind: Plan\nmetadata:\n  name: legacy-app-migration\n  namespace: openshift-mtv\nspec:\n  provider:\n    source:\n      name: vmware-source\n    destination:\n      name: openshift-destination\n  targetNamespace: legacy-migration\n  vms:\n  - name: legacy-web-app-01\n  - name: legacy-app-server-01\nEOF\n\n# 5. Execute migration\noc create -f - <<EOF\napiVersion: forklift.konveyor.io/v1beta1\nkind: Migration\nmetadata:\n  name: legacy-app-migration-run1\n  namespace: openshift-mtv\nspec:\n  plan:\n    name: legacy-app-migration\nEOF\n\n# 6. Monitor migration progress\noc get migration legacy-app-migration-run1 -n openshift-mtv -w",
       "sections": [
         {
-          "title": "Production Web Server Deployment",
-          "notice": "Deploy a production-ready web server VM with proper resource limits and cloud-init configuration.",
+          "title": "VM Migration from VMware vSphere",
+          "notice": "Migrate two VMs from VMware vSphere to OpenShift Virtualization using MTV. Target namespace is 'legacy-migration'.",
           "subtasks": [
-            "Create a new namespace named 'production'.",
-            "Create a VM named 'web-prod-01' using a clone of the 'rhel9-golden-image' DataVolume.",
-            "Configure resource requests: 1000m CPU and 4Gi memory; limits: 2000m CPU and 8Gi memory.",
-            "Use cloud-init to set hostname to 'web-prod-01.example.com'.",
-            "Install httpd and mod_ssl packages, enable and start the httpd service.",
-            "Configure the firewall to allow HTTP and HTTPS traffic."
+            "Install the Migration Toolkit for Virtualization (MTV) operator in 'openshift-mtv' namespace.",
+            "Create Secret 'vmware-credentials' with vCenter credentials: user=administrator@vsphere.local, url=https://vcenter.corp.example.com/sdk.",
+            "Create source Provider 'vmware-source' connecting to the VMware vCenter.",
+            "Create destination Provider 'openshift-destination' for the target OpenShift cluster.",
+            "Create NetworkMap 'vmware-network-mapping' mapping 'VM Network' to pod network and 'Production VLAN' to multus network.",
+            "Create StorageMap 'vmware-storage-mapping' mapping 'datastore1' to 'ocs-storagecluster-ceph-rbd' storage class.",
+            "Create Migration Plan 'legacy-app-migration' to migrate VMs 'legacy-web-app-01' and 'legacy-app-server-01' to 'legacy-migration' namespace.",
+            "Execute the migration and monitor until both VMs are successfully migrated.",
+            "Verify migrated VMs boot and are accessible in the target namespace."
           ]
         }
       ]
     },
     {
       "id": "task05",
-      "title": "Create a secondary network using Multus CNI",
-      "solution": "# 1. Create NetworkAttachmentDefinition\noc create -f - -n production <<EOF\napiVersion: k8s.cni.cncf.io/v1\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: backend-network\nspec:\n  config: |\n    {\n      \"cniVersion\": \"0.3.1\",\n      \"name\": \"backend-network\",\n      \"type\": \"cnv-bridge\",\n      \"bridge\": \"br-backend\",\n      \"vlan\": 200,\n      \"ipam\": {\n        \"type\": \"host-local\",\n        \"subnet\": \"10.200.0.0/16\",\n        \"rangeStart\": \"10.200.1.10\",\n        \"rangeEnd\": \"10.200.1.250\",\n        \"gateway\": \"10.200.0.1\"\n      }\n    }\nEOF",
+      "title": "Configure VM with iSCSI external storage via Multus",
+      "solution": "# 1. Create NetworkAttachmentDefinition for iSCSI network\noc create -f - -n virt-prod <<EOF\napiVersion: k8s.cni.cncf.io/v1\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: iscsi-storage-network\nspec:\n  config: |\n    {\n      \"cniVersion\": \"0.3.1\",\n      \"name\": \"iscsi-storage-network\",\n      \"type\": \"bridge\",\n      \"bridge\": \"br-iscsi\",\n      \"vlan\": 400,\n      \"ipam\": {\n        \"type\": \"static\",\n        \"addresses\": [\n          {\n            \"address\": \"192.168.200.50/24\"\n          }\n        ]\n      }\n    }\nEOF\n\n# 2. Create PV for iSCSI\noc create -f - <<EOF\napiVersion: v1\nkind: PersistentVolume\nmetadata:\n  name: iscsi-vm-storage-pv\nspec:\n  capacity:\n    storage: 50Gi\n  accessModes:\n  - ReadWriteOnce\n  iscsi:\n    targetPortal: iscsi.storage.example.com:3260\n    iqn: iqn.2024-01.com.example:storage.target01\n    lun: 0\n    fsType: ext4\n    readOnly: false\n  persistentVolumeReclaimPolicy: Retain\n  storageClassName: iscsi-external\nEOF\n\n# 3. Create VM with iSCSI network and storage\noc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: iscsi-storage-vm\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: iscsi-data\n            disk:\n              bus: scsi\n          interfaces:\n          - name: default\n            masquerade: {}\n          - name: iscsi-net\n            bridge: {}\n      networks:\n      - name: default\n        pod: {}\n      - name: iscsi-net\n        multus:\n          networkName: iscsi-storage-network\n      volumes:\n      - name: rootdisk\n        containerDisk:\n          image: quay.io/containerdisks/centos-stream:9\n      - name: iscsi-data\n        persistentVolumeClaim:\n          claimName: iscsi-app-data\nEOF",
       "sections": [
         {
-          "title": "Multus Network Configuration",
-          "notice": "Create a secondary network for backend communication. Work in the 'production' namespace.",
+          "title": "iSCSI External Storage Integration",
+          "notice": "Configure VM with dedicated iSCSI network and attach external iSCSI storage. Work in 'virt-prod' namespace.",
           "subtasks": [
-            "Create a NetworkAttachmentDefinition named 'backend-network'.",
-            "Use the cnv-bridge CNI plugin with bridge name 'br-backend'.",
-            "Configure VLAN ID 200.",
-            "Set up IPAM with subnet 10.200.0.0/16, IP range 10.200.1.10 to 10.200.1.250.",
-            "Set gateway to 10.200.0.1."
+            "Create NetworkAttachmentDefinition 'iscsi-storage-network' with bridge CNI, VLAN 400, static IP 192.168.200.50/24.",
+            "Create PersistentVolume 'iscsi-vm-storage-pv' connecting to iSCSI target at iscsi.storage.example.com:3260, IQN: iqn.2024-01.com.example:storage.target01, LUN 0, 50Gi capacity.",
+            "Create PVC 'iscsi-app-data' using storageClass 'iscsi-external'.",
+            "Deploy VM 'iscsi-storage-vm' with two network interfaces: default pod network and iSCSI storage network.",
+            "Attach the iSCSI PVC to the VM using SCSI bus (not virtio) for better compatibility.",
+            "Verify inside the VM that the iSCSI network interface has correct IP configuration.",
+            "Verify the iSCSI disk is visible and can be mounted."
           ]
         }
       ]
     },
     {
       "id": "task06",
-      "title": "Attach VM to multiple networks",
-      "solution": "# 1. Stop the VM\noc virt stop web-prod-01 -n production\n\n# 2. Patch VM to add second network\noc patch vm web-prod-01 -n production --type=json -p '[{\n  \"op\": \"add\",\n  \"path\": \"/spec/template/spec/domain/devices/interfaces/-\",\n  \"value\": {\n    \"name\": \"backend\",\n    \"bridge\": {}\n  }\n},{\n  \"op\": \"add\",\n  \"path\": \"/spec/template/spec/networks/-\",\n  \"value\": {\n    \"name\": \"backend\",\n    \"multus\": {\n      \"networkName\": \"backend-network\"\n    }\n  }\n}]'\n\n# 3. Start the VM\noc virt start web-prod-01 -n production\n\n# 4. Verify\noc get vmi web-prod-01 -n production -o jsonpath='{.spec.networks[*].name}'",
+      "title": "Implement OADP backup and restore for VM workload",
+      "solution": "# 1. Stop VM before backup\noc virt stop ha-database-vm -n virt-prod\n\n# 2. Create Backup\noc create -f - <<EOF\napiVersion: velero.io/v1\nkind: Backup\nmetadata:\n  name: virt-prod-backup\n  namespace: openshift-adp\nspec:\n  includedNamespaces:\n  - virt-prod\n  includedResources:\n  - virtualmachines\n  - datavolumes\n  - persistentvolumeclaims\n  storageLocation: default\n  snapshotVolumes: true\n  ttl: 720h0m0s\nEOF\n\n# 3. Monitor backup\noc get backup virt-prod-backup -n openshift-adp -w\n\n# 4. Simulate disaster\noc delete namespace virt-prod --wait=true\n\n# 5. Restore from backup\noc create -f - <<EOF\napiVersion: velero.io/v1\nkind: Restore\nmetadata:\n  name: virt-prod-restore\n  namespace: openshift-adp\nspec:\n  backupName: virt-prod-backup\n  includedNamespaces:\n  - virt-prod\n  restorePVs: true\nEOF\n\n# 6. Verify restoration\noc get vms -n virt-prod\noc virt start ha-database-vm -n virt-prod",
       "sections": [
         {
-          "title": "Multi-homed VM Configuration",
-          "notice": "Attach the 'web-prod-01' VM to the 'backend-network' in addition to the default network.",
+          "title": "Disaster Recovery with OADP",
+          "notice": "Implement comprehensive backup and restore strategy for virtualization workloads using OADP. Work across 'openshift-adp' and 'virt-prod' namespaces.",
           "subtasks": [
-            "Stop the 'web-prod-01' VM.",
-            "Add a second network interface connected to 'backend-network'.",
-            "The interface should use bridge binding type.",
-            "Start the VM and verify it has two network interfaces.",
-            "Verify inside the guest OS that both interfaces are configured."
+            "Verify OADP operator is installed and DataProtectionApplication is configured with AWS S3 backend.",
+            "Configure backup to include VirtualMachines, DataVolumes, PVCs, and related resources.",
+            "Stop VM 'ha-database-vm' gracefully before backup for data consistency.",
+            "Create Backup resource targeting 'virt-prod' namespace with snapshot volumes enabled.",
+            "Set backup TTL to 720 hours (30 days).",
+            "Simulate disaster by deleting the 'virt-prod' namespace entirely.",
+            "Create Restore resource to recover all VMs and associated resources from backup.",
+            "Verify all VMs, DataVolumes, and PVCs are successfully restored.",
+            "Start restored VMs and confirm they are functional with data intact."
           ]
         }
       ]
     },
     {
       "id": "task07",
-      "title": "Expose VM via Service and Route",
-      "solution": "# 1. Create Service\noc create -f - -n production <<EOF\napiVersion: v1\nkind: Service\nmetadata:\n  name: web-prod-service\nspec:\n  selector:\n    kubevirt.io/domain: web-prod-01\n  ports:\n  - name: http\n    port: 80\n    targetPort: 80\n    protocol: TCP\n  - name: https\n    port: 443\n    targetPort: 443\n    protocol: TCP\n  type: ClusterIP\nEOF\n\n# 2. Create Route with TLS\noc create route edge web-prod-route \\\n  --service=web-prod-service \\\n  --hostname=web.apps.ocp.example.com \\\n  --port=80 \\\n  -n production\n\n# 3. Verify\noc get route web-prod-route -n production\ncurl -k https://web.apps.ocp.example.com",
+      "title": "Configure VM with GPU passthrough using hostdevices",
+      "solution": "# 1. Label nodes with GPU\noc label node worker-gpu-01.example.com nvidia.com/gpu=true\n\n# 2. Configure HyperConverged for GPU\noc patch hco kubevirt-hyperconverged -n openshift-cnv --type=json -p '[{\n  \"op\": \"add\",\n  \"path\": \"/spec/permittedHostDevices\",\n  \"value\": {\n    \"pciHostDevices\": [\n      {\n        \"pciDeviceSelector\": \"10DE:1EB8\",\n        \"resourceName\": \"nvidia.com/TU104GL_Tesla_T4\"\n      }\n    ]\n  }\n}]'\n\n# 3. Create VM with GPU\noc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: gpu-compute-vm\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        devices:\n          gpus:\n          - name: gpu1\n            deviceName: nvidia.com/TU104GL_Tesla_T4\n        resources:\n          requests:\n            memory: 16Gi\n      nodeSelector:\n        nvidia.com/gpu: \"true\"\nEOF",
       "sections": [
         {
-          "title": "Service and Route Configuration",
-          "notice": "Expose the web server VM externally with TLS termination. Work in the 'production' namespace.",
+          "title": "GPU Passthrough Configuration",
+          "notice": "Configure VM with GPU passthrough for compute workloads. Work in 'virt-prod' namespace.",
           "subtasks": [
-            "Create a ClusterIP Service named 'web-prod-service' for the 'web-prod-01' VM.",
-            "Expose both port 80 (HTTP) and 443 (HTTPS).",
-            "Create an edge-terminated Route named 'web-prod-route' with hostname 'web.apps.ocp.example.com'.",
-            "Verify the route is accessible from outside the cluster."
+            "Label worker node 'worker-gpu-01.example.com' with 'nvidia.com/gpu=true'.",
+            "Configure HyperConverged CR to permit PCI host device passthrough for NVIDIA Tesla T4 GPU (PCI ID: 10DE:1EB8).",
+            "Set resource name to 'nvidia.com/TU104GL_Tesla_T4'.",
+            "Verify GPU resources are advertised on the labeled node.",
+            "Create VM 'gpu-compute-vm' with GPU passthrough configuration.",
+            "Use nodeSelector to schedule VM only on GPU-enabled nodes.",
+            "Start VM and verify GPU device is visible inside the guest OS using lspci."
           ]
         }
       ]
     },
     {
       "id": "task08",
-      "title": "Add persistent storage volume to running VM",
-      "solution": "# 1. Create PVC for data\noc create -f - -n production <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: web-data-volume\nspec:\n  accessModes:\n  - ReadWriteOnce\n  volumeMode: Filesystem\n  resources:\n    requests:\n      storage: 50Gi\n  storageClassName: ocs-storagecluster-ceph-rbd\nEOF\n\n# 2. Stop VM\noc virt stop web-prod-01 -n production\n\n# 3. Add volume to VM\noc patch vm web-prod-01 -n production --type=json -p '[{\n  \"op\": \"add\",\n  \"path\": \"/spec/template/spec/domain/devices/disks/-\",\n  \"value\": {\n    \"name\": \"datadisk\",\n    \"disk\": {\n      \"bus\": \"virtio\"\n    }\n  }\n},{\n  \"op\": \"add\",\n  \"path\": \"/spec/template/spec/volumes/-\",\n  \"value\": {\n    \"name\": \"datadisk\",\n    \"persistentVolumeClaim\": {\n      \"claimName\": \"web-data-volume\"\n    }\n  }\n}]'\n\n# 4. Start VM\noc virt start web-prod-01 -n production\n\n# 5. Inside guest OS, format and mount\n# mkfs.xfs /dev/vdb\n# mkdir /var/www/data\n# mount /dev/vdb /var/www/data\n# echo \"/dev/vdb /var/www/data xfs defaults 0 0\" >> /etc/fstab",
+      "title": "Implement VM affinity and anti-affinity rules",
+      "solution": "# 1. Create VM with pod affinity\noc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: frontend-vm-01\n  labels:\n    app: frontend\nspec:\n  running: true\n  template:\n    spec:\n      affinity:\n        podAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n          - labelSelector:\n              matchExpressions:\n              - key: app\n                operator: In\n                values:\n                - database\n            topologyKey: kubernetes.io/hostname\n        podAntiAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n          - labelSelector:\n              matchExpressions:\n              - key: app\n                operator: In\n                values:\n                - frontend\n            topologyKey: kubernetes.io/hostname\nEOF\n\n# 2. Verify scheduling\noc get vmi -n virt-prod -o wide",
       "sections": [
         {
-          "title": "Hot-add Storage Volume",
-          "notice": "Add a persistent data volume to the 'web-prod-01' VM for storing web content.",
+          "title": "Advanced VM Scheduling with Affinity Rules",
+          "notice": "Configure complex affinity and anti-affinity rules for VM placement optimization. Work in 'virt-prod' namespace.",
           "subtasks": [
-            "Create a 50Gi PVC named 'web-data-volume' with Filesystem volumeMode.",
-            "Stop the 'web-prod-01' VM.",
-            "Attach the PVC as an additional disk to the VM.",
-            "Start the VM and verify the new disk is visible.",
-            "Inside the guest OS, format the disk as XFS and mount it at /var/www/data.",
-            "Configure the mount to persist across reboots."
+            "Create VM 'frontend-vm-01' with podAffinity requiring co-location with database VMs (same node).",
+            "Configure podAntiAffinity to ensure frontend VMs run on different nodes from each other.",
+            "Create VM 'control-plane-vm' with nodeAffinity requiring worker nodes in 'zone-a'.",
+            "Configure preferred node affinity for specific instance types.",
+            "Verify all VMs are scheduled according to their affinity rules.",
+            "Confirm frontend VMs are on different nodes but near database VMs."
           ]
         }
       ]
     },
     {
       "id": "task09",
-      "title": "Create and verify VM snapshot",
-      "solution": "# 1. Create snapshot\noc create -f - -n production <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineSnapshot\nmetadata:\n  name: web-prod-01-snapshot-baseline\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: web-prod-01\nEOF\n\n# 2. Monitor snapshot creation\noc get vmsnapshot web-prod-01-snapshot-baseline -n production -w\n\n# 3. Verify snapshot is ready\noc get vmsnapshot web-prod-01-snapshot-baseline -n production -o jsonpath='{.status.readyToUse}'",
+      "title": "Configure VM with SR-IOV network interface for high performance",
+      "solution": "# 1. Create SriovNetworkNodePolicy\noc create -f - <<EOF\napiVersion: sriovnetwork.openshift.io/v1\nkind: SriovNetworkNodePolicy\nmetadata:\n  name: intel-nic-policy\n  namespace: openshift-sriov-network-operator\nspec:\n  nodeSelector:\n    feature.node.kubernetes.io/network-sriov.capable: \"true\"\n  resourceName: intelnic\n  numVfs: 8\n  nicSelector:\n    vendor: \"8086\"\n    deviceID: \"158b\"\n  deviceType: vfio-pci\nEOF\n\n# 2. Create SriovNetwork\noc create -f - <<EOF\napiVersion: sriovnetwork.openshift.io/v1\nkind: SriovNetwork\nmetadata:\n  name: sriov-high-perf-network\n  namespace: openshift-sriov-network-operator\nspec:\n  resourceName: intelnic\n  networkNamespace: virt-prod\n  vlan: 500\nEOF\n\n# 3. Create VM with SR-IOV\noc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: high-perf-vm\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        cpu:\n          cores: 8\n          dedicatedCpuPlacement: true\n        devices:\n          interfaces:\n          - name: sriov-net\n            sriov: {}\n      networks:\n      - name: sriov-net\n        multus:\n          networkName: sriov-high-perf-network\nEOF",
       "sections": [
         {
-          "title": "VM Snapshot Creation",
-          "notice": "Create a snapshot of the 'web-prod-01' VM for backup purposes.",
+          "title": "SR-IOV High-Performance Networking",
+          "notice": "Configure VM with SR-IOV network interface for maximum network throughput. Work in 'virt-prod' namespace.",
           "subtasks": [
-            "Create a VirtualMachineSnapshot named 'web-prod-01-snapshot-baseline'.",
-            "The snapshot should capture the current state of 'web-prod-01' including all volumes.",
-            "Wait for the snapshot to reach ReadyToUse state.",
-            "Verify the snapshot includes both root disk and data disk."
+            "Verify SR-IOV Network Operator is installed.",
+            "Create SriovNetworkNodePolicy targeting Intel NIC with 8 Virtual Functions.",
+            "Configure vfio-pci device type for VM passthrough.",
+            "Create SriovNetwork with VLAN 500.",
+            "Deploy VM 'high-perf-vm' with dedicated CPU placement.",
+            "Attach SR-IOV network interface.",
+            "Verify SR-IOV VF interface is visible in guest OS."
           ]
         }
       ]
     },
     {
       "id": "task10",
-      "title": "Restore VM from snapshot",
-      "solution": "# 1. Make a change to test restoration\n# virtctl console web-prod-01 -n production\n# rm -f /var/www/html/index.html\n# exit\n\n# 2. Stop VM\noc virt stop web-prod-01 -n production\n\n# 3. Create restore\noc create -f - -n production <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineRestore\nmetadata:\n  name: web-prod-01-restore-baseline\nspec:\n  target:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: web-prod-01\n  virtualMachineSnapshotName: web-prod-01-snapshot-baseline\nEOF\n\n# 4. Monitor restore\noc get vmrestore web-prod-01-restore-baseline -n production -w\n\n# 5. Start VM\noc virt start web-prod-01 -n production\n\n# 6. Verify restoration\n# virtctl console web-prod-01 -n production\n# ls -la /var/www/html/index.html",
+      "title": "Configure VM pool for horizontal scaling",
+      "solution": "# 1. Create VirtualMachinePool\noc create -f - -n virt-prod <<EOF\napiVersion: pool.kubevirt.io/v1alpha1\nkind: VirtualMachinePool
+metadata:
+  name: web-vm-pool
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-pool
+  virtualMachineTemplate:
+    metadata:
+      labels:
+        app: web-pool
+    spec:
+      running: true
+      template:
+        spec:
+          domain:
+            cpu:
+              cores: 2
+            devices:
+              disks:
+              - name: rootdisk
+                disk:
+                  bus: virtio
+            resources:
+              requests:
+                memory: 2Gi
+          volumes:
+          - name: rootdisk
+            containerDisk:
+              image: quay.io/containerdisks/fedora:latest
+EOF
+
+# 2. Scale the pool
+oc scale vmpool web-vm-pool --replicas=5 -n virt-prod
+
+# 3. Verify
+oc get vmi -n virt-prod -l app=web-pool",
       "sections": [
         {
-          "title": "VM Snapshot Restoration",
-          "notice": "Restore the 'web-prod-01' VM from the previously created snapshot.",
+          "title": "VM Pool and Horizontal Scaling",
+          "notice": "Implement VM pooling for horizontal scalability. Work in 'virt-prod' namespace.",
           "subtasks": [
-            "Stop the 'web-prod-01' VM.",
-            "Create a VirtualMachineRestore resource named 'web-prod-01-restore-baseline'.",
-            "Restore from the 'web-prod-01-snapshot-baseline' snapshot.",
-            "Wait for the restore operation to complete.",
-            "Start the VM and verify that the previous state has been restored."
+            "Create VirtualMachinePool 'web-vm-pool' with initial replica count of 3.",
+            "Configure VM template with 2 CPU cores and 2Gi memory.",
+            "All VMs should have label 'app: web-pool'.",
+            "Manually scale the pool to 5 replicas.",
+            "Verify all 5 VM instances are running.",
+            "Test load balancing across pool VMs."
           ]
         }
       ]
     },
     {
       "id": "task11",
-      "title": "Configure live migration policy",
-      "solution": "# 1. Configure VM for live migration\noc patch vm web-prod-01 -n production --type=merge -p '{\n  \"spec\": {\n    \"template\": {\n      \"spec\": {\n        \"evictionStrategy\": \"LiveMigrate\"\n      }\n    }\n  }\n}'\n\n# 2. Verify configuration\noc get vm web-prod-01 -n production -o jsonpath='{.spec.template.spec.evictionStrategy}'",
+      "title": "Implement VM boot order and custom BIOS settings",
+      "solution": "# 1. Create ISO DataVolume\noc create -f - -n virt-prod <<EOF\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: rhel-iso\nspec:\n  source:\n    http:\n      url: http://mirror.example.com/rhel-9.2-x86_64-boot.iso\n  pvc:\n    accessModes:\n    - ReadOnlyMany\n    resources:\n      requests:\n        storage: 1Gi\nEOF
+
+# 2. Create VM with custom boot order
+oc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: custom-boot-vm\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: custom-boot-vm\n    spec:\n      domain:\n        cpu:\n          cores: 2\n        firmware:\n          bootloader:\n            bios:\n              useSerial: true\n          serial: \"custom-serial-12345\"\n          uuid: \"5d307ca9-b3ef-428c-8861-06e72d69f223\"\n        devices:\n          disks:\n          - name: cdrom\n            cdrom:\n              bus: sata\n              readonly: true\n            bootOrder: 1\n          - name: rootdisk\n            disk:\n              bus: virtio\n            bootOrder: 2\n          - name: datadisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n            bootOrder: 3\n        resources:\n          requests:\n            memory: 4Gi\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: cdrom\n        dataVolume:\n          name: rhel-iso\n      - name: rootdisk\n        persistentVolumeClaim:\n          claimName: custom-boot-vm-root\n      - name: datadisk\n        emptyDisk:\n          capacity: 20Gi\nEOF
+
+# 3. Create root disk PVC
+oc create -f - -n virt-prod <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: custom-boot-vm-root\nspec:\n  accessModes:\n  - ReadWriteOnce\n  resources:\n    requests:\n      storage: 50Gi\nEOF
+
+# 4. Verify boot order
+virtctl console custom-boot-vm -n virt-prod",
       "sections": [
         {
-          "title": "Live Migration Configuration",
-          "notice": "Configure the 'web-prod-01' VM to support live migration for maintenance scenarios.",
+          "title": "Custom Boot Configuration and BIOS Settings",
+          "notice": "Configure VM with specific boot order and custom firmware settings. Work in 'virt-prod' namespace.",
           "subtasks": [
-            "Modify the 'web-prod-01' VM to set evictionStrategy to 'LiveMigrate'.",
-            "Verify the VM configuration allows live migration.",
-            "Ensure the VM uses shared storage (ReadWriteMany) to support migration."
+            "Create VM 'custom-boot-vm' with custom firmware serial number and UUID.",
+            "Configure BIOS bootloader with serial console enabled.",
+            "Set boot order: 1) CD-ROM (SATA bus), 2) Root disk (virtio), 3) Network PXE.",
+            "Create DataVolume 'rhel-iso' to import RHEL 9.2 boot ISO.",
+            "Attach ISO as CD-ROM device with readonly mode.",
+            "Create 50Gi PVC 'custom-boot-vm-root' for root disk.",
+            "Add empty 20Gi disk as additional data volume.",
+            "Verify VM boots from CD-ROM first via serial console."
           ]
         }
       ]
     },
     {
       "id": "task12",
-      "title": "Perform live migration",
-      "solution": "# 1. Check current node\noc get vmi web-prod-01 -n production -o jsonpath='{.status.nodeName}'\n\n# 2. Initiate live migration\noc create -f - -n production <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachineInstanceMigration\nmetadata:\n  name: web-prod-01-migration-$(date +%s)\nspec:\n  vmiName: web-prod-01\nEOF\n\n# Alternative using virtctl\n# oc virt migrate web-prod-01 -n production\n\n# 3. Monitor migration\noc get vmim -n production -w\n\n# 4. Verify new node\noc get vmi web-prod-01 -n production -o jsonpath='{.status.nodeName}'",
+      "title": "Configure VM memory hotplug and CPU hotplug",
+      "solution": "# 1. Create VM with hotplug capabilities
+oc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: hotplug-capable-vm\nspec:\n  running: true\n  dataVolumeTemplates:\n  - metadata:\n      name: hotplug-vm-root\n    spec:\n      source:\n        http:\n          url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2\n      pvc:\n        accessModes:\n        - ReadWriteOnce\n        resources:\n          requests:\n            storage: 30Gi\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: hotplug-capable-vm\n    spec:\n      domain:\n        cpu:\n          cores: 4\n          sockets: 1\n          threads: 1\n          maxSockets: 2\n        memory:\n          guest: 8Gi\n          maxGuest: 16Gi\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 8Gi\n            cpu: 2000m\n          limits:\n            memory: 16Gi\n            cpu: 8000m\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: hotplug-vm-root\nEOF
+
+# 2. Wait for VM
+oc wait --for=condition=Ready vmi/hotplug-capable-vm -n virt-prod --timeout=300s
+
+# 3. Hot-add CPU
+oc patch vmi hotplug-capable-vm -n virt-prod --type=merge -p '{\"spec\":{\"domain\":{\"cpu\":{\"sockets\":2}}}}'
+
+# 4. Hot-add Memory
+oc patch vmi hotplug-capable-vm -n virt-prod --type=merge -p '{\"spec\":{\"domain\":{\"memory\":{\"guest\":\"12Gi\"}}}}'
+
+# 5. Verify inside VM
+virtctl console hotplug-capable-vm -n virt-prod
+# lscpu
+# free -h",
       "sections": [
         {
-          "title": "Live Migration Execution",
-          "notice": "Perform a live migration of 'web-prod-01' to another node without downtime.",
+          "title": "CPU and Memory Hotplug",
+          "notice": "Configure and test runtime CPU and memory hotplug. Work in 'virt-prod' namespace.",
           "subtasks": [
-            "Identify the current node hosting the 'web-prod-01' VM.",
-            "Create a VirtualMachineInstanceMigration to migrate the VM.",
-            "Monitor the migration process until completion.",
-            "Verify the VM is now running on a different node.",
-            "Confirm the VM remained accessible during migration (no service interruption)."
+            "Create VM 'hotplug-capable-vm' with 4 CPU cores (1 socket), 8Gi memory.",
+            "Set maximum CPU sockets to 2 and maximum memory to 16Gi.",
+            "Configure resource requests and limits to allow scaling.",
+            "Without stopping VM, increase CPU sockets from 1 to 2.",
+            "Without stopping VM, increase memory from 8Gi to 12Gi.",
+            "Verify new CPUs are online in guest OS.",
+            "Verify total memory increased in guest OS.",
+            "Check dmesg for hotplug events."
           ]
         }
       ]
     },
     {
       "id": "task13",
-      "title": "Clone VM for staging environment",
-      "solution": "# 1. Create staging namespace\noc create namespace staging\n\n# 2. Clone the VM\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: web-staging-01\n  namespace: staging\n  labels:\n    app: webserver\n    env: staging\nspec:\n  dataVolumeTemplates:\n  - metadata:\n      name: web-staging-01-disk\n    spec:\n      source:\n        pvc:\n          name: web-prod-01-disk\n          namespace: production\n      pvc:\n        accessModes:\n        - ReadWriteOnce\n        resources:\n          requests:\n            storage: 30Gi\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: web-staging-01\n    spec:\n      domain:\n        cpu:\n          cores: 1\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 2Gi\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: web-staging-01-disk\nEOF\n\n# 3. Verify clone is running\noc get vm web-staging-01 -n staging\noc get vmi web-staging-01 -n staging",
+      "title": "Implement advanced NetworkPolicy for VM traffic control",
+      "solution": "# 1. Create default deny policy
+oc create -f - -n virt-prod <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: default-deny-all\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  - Egress\nEOF
+
+# 2. Allow DNS egress
+oc create -f - -n virt-prod <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-dns-egress\nspec:\n  podSelector: {}\n  policyTypes:\n  - Egress\n  egress:\n  - to:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: openshift-dns\n    ports:\n    - protocol: UDP\n      port: 53\nEOF
+
+# 3. Allow web to database
+oc create -f - -n virt-prod <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: web-to-database\nspec:\n  podSelector:\n    matchLabels:\n      app: database\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - podSelector:\n        matchLabels:\n          tier: frontend\n    ports:\n    - protocol: TCP\n      port: 5432\n    - protocol: TCP\n      port: 3306\nEOF
+
+# 4. Allow ingress to frontend
+oc create -f - -n virt-prod <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-ingress-to-frontend\nspec:\n  podSelector:\n    matchLabels:\n      tier: frontend\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: openshift-ingress\n    ports:\n    - protocol: TCP\n      port: 80\n    - protocol: TCP\n      port: 443\nEOF
+
+# 5. Verify policies
+oc get networkpolicies -n virt-prod",
       "sections": [
         {
-          "title": "VM Cloning",
-          "notice": "Create a clone of 'web-prod-01' for staging environment with reduced resources.",
+          "title": "Advanced Network Security with NetworkPolicy",
+          "notice": "Implement comprehensive network segmentation for VMs. Work in 'virt-prod' namespace.",
           "subtasks": [
-            "Create a new namespace named 'staging'.",
-            "Clone the 'web-prod-01' VM to create 'web-staging-01' in the staging namespace.",
-            "Configure the staging VM with 1 CPU core and 2Gi memory (reduced from production).",
-            "Ensure the clone uses a copy of the production VM's disk, not a shared volume.",
-            "Start the cloned VM and verify it boots successfully."
+            "Create default-deny-all NetworkPolicy blocking all traffic.",
+            "Create policy allowing DNS egress to OpenShift DNS service on UDP 53.",
+            "Create policy allowing frontend VMs to connect to database VMs on ports 5432 and 3306.",
+            "Create policy allowing OpenShift ingress to reach frontend VMs on ports 80 and 443.",
+            "Verify database VMs accessible only from frontend VMs.",
+            "Verify frontend VMs accessible only from ingress.",
+            "Test that all other communication is blocked."
           ]
         }
       ]
     },
     {
       "id": "task14",
-      "title": "Configure VM resource limits and QoS",
-      "solution": "# 1. Update VM with resource limits\noc patch vm web-staging-01 -n staging --type=merge -p '{\n  \"spec\": {\n    \"template\": {\n      \"spec\": {\n        \"domain\": {\n          \"resources\": {\n            \"requests\": {\n              \"memory\": \"2Gi\",\n              \"cpu\": \"500m\"\n            },\n            \"limits\": {\n              \"memory\": \"4Gi\",\n              \"cpu\": \"1000m\"\n            }\n          }\n        }\n      }\n    }\n  }\n}'\n\n# 2. Restart VM to apply changes\noc virt restart web-staging-01 -n staging\n\n# 3. Verify resource configuration\noc get vmi web-staging-01 -n staging -o jsonpath='{.spec.domain.resources}'",
+      "title": "Configure VM snapshot with application-consistent state",
+      "solution": "# 1. Create VM with data volume
+oc create -f - -n virt-prod <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: app-data-volume\nspec:\n  accessModes:\n  - ReadWriteOnce\n  resources:\n    requests:\n      storage: 100Gi\nEOF
+
+# 2. Create VM
+oc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: app-with-hooks-vm\nspec:\n  running: true\n  dataVolumeTemplates:\n  - metadata:\n      name: app-with-hooks-vm-root\n    spec:\n      source:\n        http:\n          url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2\n      pvc:\n        accessModes:\n        - ReadWriteOnce\n        resources:\n          requests:\n            storage: 30Gi\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: app-with-hooks-vm\n    spec:\n      domain:\n        cpu:\n          cores: 4\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: datadisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 8Gi\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: app-with-hooks-vm-root\n      - name: datadisk\n        persistentVolumeClaim:\n          claimName: app-data-volume\nEOF
+
+# 3. Create snapshot
+oc create -f - -n virt-prod <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineSnapshot\nmetadata:\n  name: app-consistent-snapshot\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: app-with-hooks-vm\n  failureDeadline: 5m\nEOF
+
+# 4. Monitor snapshot
+oc get vmsnapshot app-consistent-snapshot -n virt-prod -w",
       "sections": [
         {
-          "title": "Resource Management and QoS",
-          "notice": "Configure proper resource requests and limits for the staging VM.",
+          "title": "Application-Consistent VM Snapshots",
+          "notice": "Create VM snapshots with application consistency. Work in 'virt-prod' namespace.",
           "subtasks": [
-            "Set resource requests for 'web-staging-01': 500m CPU and 2Gi memory.",
-            "Set resource limits for 'web-staging-01': 1000m CPU and 4Gi memory.",
-            "Restart the VM to apply the changes.",
-            "Verify the QoS class assigned to the VM pod.",
-            "Confirm the VM operates within the defined resource boundaries."
+            "Create VM 'app-with-hooks-vm' with separate root and data disks.",
+            "Configure VM with 4 CPU cores and 8Gi memory.",
+            "Create 100Gi PVC 'app-data-volume' for application data.",
+            "After VM starts, install MySQL and create test database.",
+            "Create VirtualMachineSnapshot 'app-consistent-snapshot' with 5-minute deadline.",
+            "Monitor snapshot creation until ReadyToUse state.",
+            "Verify snapshot includes both root and data volumes.",
+            "Test restore from snapshot to verify data integrity."
           ]
         }
       ]
     },
     {
       "id": "task15",
-      "title": "Troubleshoot a VM that fails to start",
-      "solution": "# 1. Check VM status\noc get vm -n staging\noc describe vm web-staging-01 -n staging\n\n# 2. Check events\noc get events -n staging --sort-by='.lastTimestamp'\n\n# 3. Common issues to check:\n# - PVC not bound\noc get pvc -n staging\n\n# - Insufficient resources on nodes\noc describe nodes | grep -A 5 \"Allocated resources\"\n\n# - Image pull errors\noc get pods -n staging\noc logs <virt-launcher-pod> -n staging\n\n# 4. Check VMI if it exists\noc get vmi -n staging\noc describe vmi web-staging-01 -n staging\n\n# 5. Fix common issues:\n# If PVC pending:\noc get pvc web-staging-01-disk -n staging -o yaml\n# Check storageClass exists and is properly configured\n\n# If resource issues:\n# Reduce VM resource requests or scale cluster\n\n# If image issues:\n# Verify DataVolume source is accessible\noc get dv -n staging\noc describe dv web-staging-01-disk -n staging\n\n# 6. Verify virt-launcher logs\noc logs -l kubevirt.io/domain=web-staging-01 -n staging\n\n# 7. Check CNV operator status\noc get pods -n openshift-cnv\noc get hco -n openshift-cnv",
+      "title": "Complex troubleshooting: VM networking and storage issues",
+      "solution": "# Scenario: VM 'problematic-vm' exists but has multiple issues
+
+# 1. Investigate VM status
+oc get vm problematic-vm -n virt-prod
+oc get vmi problematic-vm -n virt-prod
+oc describe vm problematic-vm -n virt-prod
+
+# 2. Check events
+oc get events -n virt-prod --sort-by='.lastTimestamp' | grep problematic-vm
+
+# 3. Check PVC status
+oc get pvc -n virt-prod | grep problematic-vm
+oc describe pvc problematic-vm-disk -n virt-prod
+
+# 4. Check DataVolume import
+oc get dv problematic-vm-disk -n virt-prod
+oc describe dv problematic-vm-disk -n virt-prod
+
+# 5. Check import pod logs
+IMPORT_POD=$(oc get pods -n virt-prod | grep importer | grep problematic-vm | awk '{print $1}')
+oc logs $IMPORT_POD -n virt-prod
+
+# 6. Check node resources
+oc describe nodes | grep -A 10 \"Allocated resources\"
+
+# 7. Check NetworkAttachmentDefinitions
+oc get network-attachment-definitions -n virt-prod
+
+# 8. Check virt-launcher pod
+oc get pods -n virt-prod | grep virt-launcher | grep problematic-vm
+LAUNCHER_POD=$(oc get pods -n virt-prod -l kubevirt.io/domain=problematic-vm -o name)
+oc logs $LAUNCHER_POD -n virt-prod -c compute
+
+# 9. Check HyperConverged health
+oc get hco -n openshift-cnv
+oc get pods -n openshift-cnv | grep -v Running
+
+# 10. Check virt-handler
+oc get pods -n openshift-cnv | grep virt-handler
+
+# Common fixes:
+# Fix PVC storage class
+oc patch pvc problematic-vm-disk -n virt-prod -p '{\"spec\":{\"storageClassName\":\"ocs-storagecluster-ceph-rbd\"}}'
+
+# Reduce resource requests
+oc patch vm problematic-vm -n virt-prod --type=merge -p '{\"spec\":{\"template\":{\"spec\":{\"domain\":{\"resources\":{\"requests\":{\"memory\":\"2Gi\"}}}}}}}'
+
+# Fix network reference
+oc patch vm problematic-vm -n virt-prod --type=json -p '[{\"op\":\"replace\",\"path\":\"/spec/template/spec/networks/1/multus/networkName\",\"value\":\"correct-network-name\"}]'
+
+# Restart VM
+oc virt restart problematic-vm -n virt-prod
+
+# Verify
+oc wait --for=condition=Ready vmi/problematic-vm -n virt-prod --timeout=300s
+virtctl console problematic-vm -n virt-prod",
       "sections": [
         {
-          "title": "VM Troubleshooting",
-          "notice": "The 'web-staging-01' VM in the staging namespace is not starting. Identify and resolve the issue.",
+          "title": "Complex Troubleshooting Scenario",
+          "notice": "VM 'problematic-vm' in 'virt-prod' has multiple issues. Systematically diagnose and resolve all problems.",
           "subtasks": [
-            "Examine the VM status and recent events in the staging namespace.",
-            "Check if the PVC is bound and the underlying storage is available.",
-            "Verify node resources are sufficient to schedule the VM.",
-            "Review virt-launcher pod logs for error messages.",
-            "Identify the root cause (could be: storage issues, resource constraints, image problems, or configuration errors).",
-            "Implement the fix and verify the VM starts successfully."
+            "Examine VM and VMI status to identify problems.",
+            "Review recent events for error messages.",
+            "Check if PVC is bound; investigate storage issues.",
+            "Verify cluster nodes have sufficient resources.",
+            "Check DataVolume import process and logs.",
+            "Verify NetworkAttachmentDefinitions exist and are correct.",
+            "Check virt-launcher pod status and logs.",
+            "Verify HyperConverged operator and virt-handler health.",
+            "Apply appropriate fixes: storage class, resources, network refs.",
+            "Restart VM and verify it reaches Running state.",
+            "Access VM console to confirm functionality.",
+            "Document root cause and resolution steps."
           ]
         }
       ]
     }
-  ]
-}
