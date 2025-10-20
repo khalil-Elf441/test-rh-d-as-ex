@@ -1,0 +1,321 @@
+{
+  "examId": "ex316-9",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 10: Advanced Mock Exam",
+  "description": "A comprehensive 15-task advanced exam covering RBAC, cloud-init, disk operations, OADP backups, networking, and all EX316 objectives for OpenShift 4.16",
+  "timeLimit": "4h",
+  "prerequisites": "# Prerequisites setup script\n# Run this before starting the exam\n\necho \"Setting up base environment for EX316 Advanced Mock Exam...\"\n\n# Ensure OpenShift Virtualization operator is installed\necho \"Verifying OpenShift Virtualization operator...\"\noc get csv -n openshift-cnv | grep kubevirt-hyperconverged\n\n# Ensure OADP operator is installed\necho \"Verifying OADP operator...\"\noc get csv -n openshift-adp | grep oadp-operator\n\n# Verify NMState operator for network configuration\necho \"Verifying NMState operator...\"\noc get csv -n openshift-nmstate | grep kubernetes-nmstate-operator\n\n# Verify default storage class exists\noc get sc | grep \"(default)\"\n\necho \"Prerequisites verified. Ready to start the exam.\"\n",
+  "tasks": [
+    {
+      "id": "task01",
+      "title": "Deploy OpenShift Virtualization and Configure RBAC for VM Management",
+      "solution": "# 1. Create namespace\noc create namespace virt-rbac-ns\n\n# 2. Create ServiceAccount\noc create serviceaccount vm-operator -n virt-rbac-ns\n\n# 3. Create Role with VM management permissions\noc create role vm-manager \\\n  --verb=get,list,watch,create,delete,patch,update \\\n  --resource=virtualmachines,virtualmachineinstances \\\n  -n virt-rbac-ns\n\n# 4. Create RoleBinding\noc create rolebinding vm-operator-binding \\\n  --role=vm-manager \\\n  --serviceaccount=virt-rbac-ns:vm-operator \\\n  -n virt-rbac-ns\n\n# 5. Create read-only Role\noc create role vm-viewer \\\n  --verb=get,list,watch \\\n  --resource=virtualmachines,virtualmachineinstances \\\n  -n virt-rbac-ns\n\n# 6. Create User (simulated)\noc create user vm-auditor\n\n# 7. Bind viewer role to user\noc create rolebinding vm-auditor-binding \\\n  --role=vm-viewer \\\n  --user=vm-auditor \\\n  -n virt-rbac-ns",
+      "sections": [
+        {
+          "title": "RBAC Configuration for Virtual Machine Management",
+          "notice": "Configure role-based access control for VM operations in the virt-rbac-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'virt-rbac-ns'",
+            "Create a ServiceAccount named 'vm-operator' in the namespace",
+            "Create a Role named 'vm-manager' that allows full CRUD operations on VirtualMachine and VirtualMachineInstance resources",
+            "Bind the 'vm-manager' role to the 'vm-operator' ServiceAccount",
+            "Create a Role named 'vm-viewer' that allows only read operations (get, list, watch) on VM resources",
+            "Create a user named 'vm-auditor'",
+            "Bind the 'vm-viewer' role to the 'vm-auditor' user"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task02",
+      "title": "Deploy VM with Cloud-Init and Custom Repository Configuration",
+      "solution": "# 1. Create namespace\noc create namespace cloudinit-vm-ns\n\n# 2. Create VirtualMachine with cloud-init\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: app-server\n  namespace: cloudinit-vm-ns\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: app-server\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 2Gi\n            cpu: 1\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            user: admin\n            password: redhat\n            chpasswd:\n              expire: false\n            yum_repos:\n              custom-repo:\n                name: Custom Application Repository\n                baseurl: http://repo.example.com/custom_packages\n                enabled: true\n                gpgcheck: false\n            packages:\n              - httpd\n              - php\n            runcmd:\n              - systemctl enable httpd\n              - systemctl start httpd\n              - echo \"Application Server Ready\" > /var/www/html/index.html\nEOF",
+      "sections": [
+        {
+          "title": "Cloud-Init VM Provisioning with Custom Repository",
+          "notice": "Deploy a VM using cloud-init to configure users, repositories, and install packages. Work in the cloudinit-vm-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'cloudinit-vm-ns'",
+            "Create a VirtualMachine named 'app-server' using a RHEL 9 container disk",
+            "Configure cloud-init to create a user 'admin' with password 'redhat'",
+            "Add a custom yum repository with baseurl 'http://repo.example.com/custom_packages'",
+            "Install 'httpd' and 'php' packages via cloud-init",
+            "Enable and start the httpd service automatically",
+            "Create a custom index.html file with content 'Application Server Ready'"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task03",
+      "title": "Configure Multiple Disks and Perform Disk Operations",
+      "solution": "# 1. Create namespace\noc create namespace disk-ops-ns\n\n# 2. Create multiple PVCs\noc create -f - <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: data-disk-01\n  namespace: disk-ops-ns\nspec:\n  accessModes:\n    - ReadWriteOnce\n  volumeMode: Filesystem\n  resources:\n    requests:\n      storage: 10Gi\n---\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: data-disk-02\n  namespace: disk-ops-ns\nspec:\n  accessModes:\n    - ReadWriteOnce\n  volumeMode: Block\n  resources:\n    requests:\n      storage: 15Gi\n---\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: backup-disk\n  namespace: disk-ops-ns\nspec:\n  accessModes:\n    - ReadWriteOnce\n  volumeMode: Filesystem\n  resources:\n    requests:\n      storage: 20Gi\nEOF\n\n# 3. Create VM with multiple disks\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: storage-vm\n  namespace: disk-ops-ns\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: storage-vm\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n          - name: data01\n            disk:\n              bus: virtio\n          - name: data02\n            disk:\n              bus: virtio\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\n      - name: data01\n        persistentVolumeClaim:\n          claimName: data-disk-01\n      - name: data02\n        persistentVolumeClaim:\n          claimName: data-disk-02\nEOF\n\n# 4. Hot-plug the backup disk\nvirtctl addvolume storage-vm --volume-name=backup --persist \\\n  --claim-name=backup-disk -n disk-ops-ns\n\n# 5. Detach data-disk-02\nvirtctl stop storage-vm -n disk-ops-ns\noc patch vm storage-vm -n disk-ops-ns --type=json \\\n  -p='[{\"op\":\"remove\",\"path\":\"/spec/template/spec/domain/devices/disks/2\"}]'\noc patch vm storage-vm -n disk-ops-ns --type=json \\\n  -p='[{\"op\":\"remove\",\"path\":\"/spec/template/spec/volumes/2\"}]'\nvirtctl start storage-vm -n disk-ops-ns",
+      "sections": [
+        {
+          "title": "Advanced Disk Management and Hot-plug Operations",
+          "notice": "Create a VM with multiple disks and perform attach/detach operations. Work in the disk-ops-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'disk-ops-ns'",
+            "Create three PVCs: 'data-disk-01' (10Gi, Filesystem), 'data-disk-02' (15Gi, Block), and 'backup-disk' (20Gi, Filesystem)",
+            "Create a VirtualMachine named 'storage-vm' with RHEL 9",
+            "Attach 'data-disk-01' and 'data-disk-02' to the VM at creation time",
+            "Hot-plug 'backup-disk' to the running VM without stopping it",
+            "Detach 'data-disk-02' from the VM",
+            "Verify inside the guest OS that only 'data-disk-01' and 'backup-disk' are visible"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task04",
+      "title": "Configure OADP for VM Backup and Perform Backup Operation",
+      "solution": "# 1. Create namespace\noc create namespace oadp-backup-ns\n\n# 2. Create DataProtectionApplication\noc create -f - <<EOF\napiVersion: oadp.openshift.io/v1alpha1\nkind: DataProtectionApplication\nmetadata:\n  name: velero-dpa\n  namespace: openshift-adp\nspec:\n  backupLocations:\n  - velero:\n      config:\n        profile: default\n        region: us-east-1\n      credential:\n        key: cloud\n        name: cloud-credentials\n      default: true\n      objectStorage:\n        bucket: oadp-backup-bucket\n        prefix: velero\n      provider: aws\n  configuration:\n    velero:\n      defaultPlugins:\n      - openshift\n      - aws\n      - kubevirt\n    restic:\n      enable: true\nEOF\n\n# 3. Create test VM\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: critical-vm\n  namespace: oadp-backup-ns\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n          - name: datadisk\n            disk:\n              bus: virtio\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\n      - name: datadisk\n        dataVolume:\n          name: critical-data\n---\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: critical-data\n  namespace: oadp-backup-ns\nspec:\n  source:\n    blank: {}\n  pvc:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 10Gi\nEOF\n\n# 4. Create Backup\noc create -f - <<EOF\napiVersion: velero.io/v1\nkind: Backup\nmetadata:\n  name: critical-vm-backup\n  namespace: openshift-adp\nspec:\n  includedNamespaces:\n  - oadp-backup-ns\n  includedResources:\n  - virtualmachines\n  - datavolumes\n  - persistentvolumeclaims\n  - persistentvolumes\n  snapshotVolumes: true\n  ttl: 720h0m0s\nEOF\n\n# 5. Monitor backup\noc get backup critical-vm-backup -n openshift-adp -w",
+      "sections": [
+        {
+          "title": "OADP Configuration and VM Backup",
+          "notice": "Configure OADP and backup a critical VM with its data volumes. Work in the oadp-backup-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'oadp-backup-ns'",
+            "Ensure DataProtectionApplication is configured in openshift-adp namespace with kubevirt plugin",
+            "Create a VirtualMachine named 'critical-vm' with a 10Gi DataVolume named 'critical-data'",
+            "Create a Backup resource named 'critical-vm-backup' that includes the VM and all its volumes",
+            "Configure the backup to include PVCs and PVs",
+            "Enable volume snapshots in the backup",
+            "Verify the backup completes successfully with phase 'Completed'"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task05",
+      "title": "Restore VM from OADP Backup",
+      "solution": "# 1. Delete the VM to simulate disaster\noc delete vm critical-vm -n oadp-backup-ns\noc delete dv critical-data -n oadp-backup-ns\n\n# 2. Create Restore\noc create -f - <<EOF\napiVersion: velero.io/v1\nkind: Restore\nmetadata:\n  name: critical-vm-restore\n  namespace: openshift-adp\nspec:\n  backupName: critical-vm-backup\n  includedNamespaces:\n  - oadp-backup-ns\n  restorePVs: true\nEOF\n\n# 3. Monitor restore\noc get restore critical-vm-restore -n openshift-adp -w\n\n# 4. Verify VM is restored\noc get vm critical-vm -n oadp-backup-ns\noc get dv critical-data -n oadp-backup-ns\n\n# 5. Start the VM\nvirtctl start critical-vm -n oadp-backup-ns",
+      "sections": [
+        {
+          "title": "OADP VM Restore Operation",
+          "notice": "Restore the previously backed up VM using OADP. Continue working in the oadp-backup-ns namespace",
+          "subtasks": [
+            "Simulate a disaster by deleting the 'critical-vm' and its DataVolume 'critical-data'",
+            "Create a Restore resource named 'critical-vm-restore' from the 'critical-vm-backup'",
+            "Ensure PVs are restored along with the VM",
+            "Monitor the restore operation until completion",
+            "Verify the VM and DataVolume are recreated",
+            "Start the restored VM and confirm it runs successfully"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task06",
+      "title": "Configure Network Policies for VM Isolation",
+      "solution": "# 1. Create namespace\noc create namespace netpol-vm-ns\n\n# 2. Create VMs in different tiers\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: frontend-vm\n  namespace: netpol-vm-ns\n  labels:\n    tier: frontend\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        tier: frontend\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk: {}\n        resources:\n          requests:\n            memory: 1Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\n---\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: backend-vm\n  namespace: netpol-vm-ns\n  labels:\n    tier: backend\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        tier: backend\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk: {}\n        resources:\n          requests:\n            memory: 1Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\n---\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: database-vm\n  namespace: netpol-vm-ns\n  labels:\n    tier: database\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        tier: database\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk: {}\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\nEOF\n\n# 3. Create NetworkPolicy - deny all by default\noc create -f - <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: deny-all\n  namespace: netpol-vm-ns\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  - Egress\nEOF\n\n# 4. Allow frontend to backend\noc create -f - <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-frontend-to-backend\n  namespace: netpol-vm-ns\nspec:\n  podSelector:\n    matchLabels:\n      tier: backend\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - podSelector:\n        matchLabels:\n          tier: frontend\n    ports:\n    - protocol: TCP\n      port: 8080\nEOF\n\n# 5. Allow backend to database\noc create -f - <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-backend-to-database\n  namespace: netpol-vm-ns\nspec:\n  podSelector:\n    matchLabels:\n      tier: database\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - podSelector:\n        matchLabels:\n          tier: backend\n    ports:\n    - protocol: TCP\n      port: 5432\nEOF",
+      "sections": [
+        {
+          "title": "Network Policy Configuration for Multi-Tier Application",
+          "notice": "Configure network isolation between VMs in different application tiers. Work in the netpol-vm-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'netpol-vm-ns'",
+            "Create three VMs: 'frontend-vm', 'backend-vm', and 'database-vm' with appropriate tier labels",
+            "Create a NetworkPolicy named 'deny-all' that blocks all ingress and egress traffic by default",
+            "Create a NetworkPolicy named 'allow-frontend-to-backend' allowing frontend-vm to access backend-vm on port 8080",
+            "Create a NetworkPolicy named 'allow-backend-to-database' allowing backend-vm to access database-vm on port 5432",
+            "Verify that frontend-vm cannot directly communicate with database-vm"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task07",
+      "title": "Configure Multus with Bridge Network and Secondary Interfaces",
+      "solution": "# 1. Create namespace\noc create namespace multus-bridge-ns\n\n# 2. Create Linux Bridge NetworkAttachmentDefinition\noc create -f - <<EOF\napiVersion: k8s.cni.cncf.io/v1\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: vlan100-bridge\n  namespace: multus-bridge-ns\nspec:\n  config: |\n    {\n      \"cniVersion\": \"0.3.1\",\n      \"name\": \"vlan100-bridge\",\n      \"type\": \"cnv-bridge\",\n      \"bridge\": \"br1\",\n      \"vlan\": 100,\n      \"macspoofchk\": true,\n      \"ipam\": {}\n    }\nEOF\n\n# 3. Create second NAD for management\noc create -f - <<EOF\napiVersion: k8s.cni.cncf.io/v1\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: mgmt-network\n  namespace: multus-bridge-ns\nspec:\n  config: |\n    {\n      \"cniVersion\": \"0.3.1\",\n      \"name\": \"mgmt-network\",\n      \"type\": \"cnv-bridge\",\n      \"bridge\": \"br-mgmt\",\n      \"vlan\": 200,\n      \"ipam\": {\n        \"type\": \"static\"\n      }\n    }\nEOF\n\n# 4. Create multi-homed VM\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: router-vm\n  namespace: multus-bridge-ns\nspec:\n  running: true\n  template:\n    metadata:\n      annotations:\n        k8s.v1.cni.cncf.io/networks: vlan100-bridge,mgmt-network\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n          - name: vlan100\n            bridge: {}\n          - name: mgmt\n            bridge: {}\n        resources:\n          requests:\n            memory: 2Gi\n      networks:\n      - name: default\n        pod: {}\n      - name: vlan100\n        multus:\n          networkName: vlan100-bridge\n      - name: mgmt\n        multus:\n          networkName: mgmt-network\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\nEOF",
+      "sections": [
+        {
+          "title": "Multus CNI and Bridge Network Configuration",
+          "notice": "Configure a VM with multiple network interfaces using Multus CNI. Work in the multus-bridge-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'multus-bridge-ns'",
+            "Create a NetworkAttachmentDefinition named 'vlan100-bridge' using cnv-bridge with VLAN 100",
+            "Create a NetworkAttachmentDefinition named 'mgmt-network' using cnv-bridge with VLAN 200",
+            "Create a VirtualMachine named 'router-vm' with three network interfaces",
+            "Connect the first interface to the default pod network with masquerade",
+            "Connect the second interface to 'vlan100-bridge'",
+            "Connect the third interface to 'mgmt-network'",
+            "Verify all three interfaces are visible inside the VM"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task08",
+      "title": "Configure VM Snapshots and Restore Operations",
+      "solution": "# 1. Create namespace\noc create namespace snapshot-vm-ns\n\n# 2. Create VM with data volume\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: data-vm\n  namespace: snapshot-vm-ns\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n          - name: datadisk\n            disk:\n              bus: virtio\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\n      - name: datadisk\n        dataVolume:\n          name: data-volume\n---\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: data-volume\n  namespace: snapshot-vm-ns\nspec:\n  source:\n    blank: {}\n  pvc:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 10Gi\nEOF\n\n# 3. Wait for VM to be ready and create initial snapshot\noc wait --for=condition=Ready vmi/data-vm -n snapshot-vm-ns --timeout=300s\n\noc create -f - <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineSnapshot\nmetadata:\n  name: data-vm-snapshot-1\n  namespace: snapshot-vm-ns\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: data-vm\nEOF\n\n# 4. Wait for snapshot to complete\noc wait --for=condition=Ready vmsnap/data-vm-snapshot-1 -n snapshot-vm-ns --timeout=300s\n\n# 5. Create second snapshot\noc create -f - <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineSnapshot\nmetadata:\n  name: data-vm-snapshot-2\n  namespace: snapshot-vm-ns\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: data-vm\nEOF\n\n# 6. Restore from first snapshot\noc create -f - <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineRestore\nmetadata:\n  name: data-vm-restore\n  namespace: snapshot-vm-ns\nspec:\n  target:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: data-vm\n  virtualMachineSnapshotName: data-vm-snapshot-1\nEOF\n\n# 7. Monitor restore\noc wait --for=condition=Ready vmrestore/data-vm-restore -n snapshot-vm-ns --timeout=300s",
+      "sections": [
+        {
+          "title": "VM Snapshot Management and Restore",
+          "notice": "Create and manage multiple VM snapshots and perform restore operations. Work in the snapshot-vm-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'snapshot-vm-ns'",
+            "Create a VirtualMachine named 'data-vm' with a 10Gi DataVolume",
+            "Create a snapshot named 'data-vm-snapshot-1' of the running VM",
+            "Wait for the snapshot to complete successfully",
+            "Log into the VM and create a test file in /root/test.txt",
+            "Create a second snapshot named 'data-vm-snapshot-2'",
+            "Delete the test file from the VM",
+            "Restore the VM from 'data-vm-snapshot-1'",
+            "Verify the test file no longer exists after restore"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task09",
+      "title": "Configure VM Live Migration with Node Affinity",
+      "solution": "# 1. Create namespace\noc create namespace migration-vm-ns\n\n# 2. Label worker nodes\nWORKER1=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[0].metadata.name}')\nWORKER2=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[1].metadata.name}')\n\noc label node $WORKER1 workload=compute\noc label node $WORKER2 workload=compute\n\n# 3. Create VM with node affinity\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: migrate-vm\n  namespace: migration-vm-ns\nspec:\n  running: true\n  template:\n    spec:\n      affinity:\n        nodeAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n            nodeSelectorTerms:\n            - matchExpressions:\n              - key: workload\n                operator: In\n                values:\n                - compute\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\nEOF\n\n# 4. Initiate live migration\nvirtctl migrate migrate-vm -n migration-vm-ns\n\n# 5. Monitor migration\noc get vmim -n migration-vm-ns -w\n\n# 6. Verify migration completed\noc get vmi migrate-vm -n migration-vm-ns -o jsonpath='{.status.migrationState.completed}'",
+      "sections": [
+        {
+          "title": "Live Migration with Node Affinity Configuration",
+          "notice": "Configure and perform live migration of a VM with node affinity rules. Work in the migration-vm-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'migration-vm-ns'",
+            "Label two worker nodes with 'workload=compute'",
+            "Create a VirtualMachine named 'migrate-vm' with node affinity requiring 'workload=compute' label",
+            "Verify the VM is scheduled on one of the labeled nodes",
+            "Initiate a live migration of the VM to another node",
+            "Monitor the VirtualMachineInstanceMigration resource",
+            "Verify the VM successfully migrated to a different node without downtime",
+            "Confirm the VM remains on a node with the 'workload=compute' label"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task10",
+      "title": "Configure ClusterIP and NodePort Services for VM Access",
+      "solution": "# 1. Create namespace\noc create namespace vm-service-ns\n\n# 2. Create VM with web service\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: web-vm\n  namespace: vm-service-ns\n  labels:\n    app: webserver\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        app: webserver\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            packages:\n              - httpd\n            runcmd:\n              - systemctl enable httpd\n              - systemctl start httpd\n              - echo \"Web Server Running\" > /var/www/html/index.html\nEOF\n\n# 3. Create ClusterIP Service\noc create -f - <<EOF\napiVersion: v1\nkind: Service\nmetadata:\n  name: web-vm-clusterip\n  namespace: vm-service-ns\nspec:\n  type: ClusterIP\n  selector:\n    app: webserver\n  ports:\n  - name: http\n    protocol: TCP\n    port: 80\n    targetPort: 80\nEOF\n\n# 4. Create NodePort Service\noc create -f - <<EOF\napiVersion: v1\nkind: Service\nmetadata:\n  name: web-vm-nodeport\n  namespace: vm-service-ns\nspec:\n  type: NodePort\n  selector:\n    app: webserver\n  ports:\n  - name: http\n    protocol: TCP\n    port: 80\n    targetPort: 80\n    nodePort: 30080\nEOF\n\n# 5. Verify services\noc get svc -n vm-service-ns",
+      "sections": [
+        {
+          "title": "Kubernetes Service Configuration for VMs",
+          "notice": "Configure ClusterIP and NodePort services to expose a VM. Work in the vm-service-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'vm-service-ns'",
+            "Create a VirtualMachine named 'web-vm' with httpd installed via cloud-init",
+            "Add label 'app=webserver' to the VM",
+            "Create a ClusterIP Service named 'web-vm-clusterip' exposing port 80",
+            "Create a NodePort Service named 'web-vm-nodeport' exposing port 80 on nodePort 30080",
+            "Verify both services are created and have endpoints",
+            "Test internal access using the ClusterIP service",
+            "Test external access using the NodePort service"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Configure Health Probes and Watchdog for VM Monitoring",
+      "solution": "# 1. Create namespace\noc create namespace health-probe-ns\n\n# 2. Create VM with health probes and watchdog\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: monitored-vm\n  namespace: health-probe-ns\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n          watchdog:\n            name: watchdog0\n            i6300esb:\n              action: poweroff\n        resources:\n          requests:\n            memory: 2Gi\n      readinessProbe:\n        httpGet:\n          port: 80\n          path: /health\n        initialDelaySeconds: 30\n        periodSeconds: 10\n        timeoutSeconds: 5\n        failureThreshold: 3\n      livenessProbe:\n        tcpSocket:\n          port: 80\n        initialDelaySeconds: 60\n        periodSeconds: 20\n        timeoutSeconds: 5\n        failureThreshold: 3\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            packages:\n              - httpd\n            write_files:\n            - path: /var/www/html/health\n              content: \"OK\"\n            runcmd:\n              - systemctl enable httpd\n              - systemctl start httpd\nEOF\n\n# 3. Verify probes are configured\noc get vmi monitored-vm -n health-probe-ns -o yaml | grep -A 5 probe",
+      "sections": [
+        {
+          "title": "Health Probe and Watchdog Configuration",
+          "notice": "Configure readiness and liveness probes along with a watchdog device. Work in the health-probe-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'health-probe-ns'",
+            "Create a VirtualMachine named 'monitored-vm' with httpd installed",
+            "Configure a readiness probe using HTTP GET on port 80 path /health",
+            "Set readiness probe with initialDelaySeconds=30, periodSeconds=10, failureThreshold=3",
+            "Configure a liveness probe using TCP socket on port 80",
+            "Set liveness probe with initialDelaySeconds=60, periodSeconds=20, failureThreshold=3",
+            "Add an i6300esb watchdog device with poweroff action",
+            "Create a /var/www/html/health endpoint returning 'OK' via cloud-init"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Configure VM Load Balancing with Custom Route",
+      "solution": "# 1. Create namespace\noc create namespace loadbalancer-ns\n\n# 2. Create multiple web VMs\nfor i in 1 2 3; do\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: web-vm-$i\n  namespace: loadbalancer-ns\n  labels:\n    app: balanced-web\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        app: balanced-web\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n        resources:\n          requests:\n            memory: 1Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            packages:\n              - httpd\n            runcmd:\n              - systemctl enable httpd\n              - systemctl start httpd\n              - echo \"Server $i\" > /var/www/html/index.html\nEOF\ndone\n\n# 3. Create Service\noc create -f - <<EOF\napiVersion: v1\nkind: Service\nmetadata:\n  name: balanced-web-svc\n  namespace: loadbalancer-ns\nspec:\n  type: ClusterIP\n  selector:\n    app: balanced-web\n  ports:\n  - name: http\n    protocol: TCP\n    port: 80\n    targetPort: 80\n  sessionAffinity: None\nEOF\n\n# 4. Create Route with custom configuration\noc create -f - <<EOF\napiVersion: route.openshift.io/v1\nkind: Route\nmetadata:\n  name: balanced-web-route\n  namespace: loadbalancer-ns\n  annotations:\n    haproxy.router.openshift.io/balance: roundrobin\n    haproxy.router.openshift.io/timeout: 30s\nspec:\n  to:\n    kind: Service\n    name: balanced-web-svc\n    weight: 100\n  port:\n    targetPort: http\n  tls:\n    termination: edge\n    insecureEdgeTerminationPolicy: Redirect\nEOF\n\n# 5. Get route URL\noc get route balanced-web-route -n loadbalancer-ns -o jsonpath='{.spec.host}'",
+      "sections": [
+        {
+          "title": "VM Load Balancing with Routes",
+          "notice": "Configure load balancing across multiple VMs using Services and Routes. Work in the loadbalancer-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'loadbalancer-ns'",
+            "Create three VirtualMachines named 'web-vm-1', 'web-vm-2', 'web-vm-3' with label 'app=balanced-web'",
+            "Configure each VM to run httpd with unique content identifying the server number",
+            "Create a ClusterIP Service named 'balanced-web-svc' that selects all three VMs",
+            "Configure the service without session affinity for true load balancing",
+            "Create a Route named 'balanced-web-route' with edge TLS termination",
+            "Configure HAProxy annotations for roundrobin balancing and 30s timeout",
+            "Verify requests are distributed across all three VMs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task13",
+      "title": "Prepare Node for Maintenance and Drain VMs",
+      "solution": "# 1. Create namespace\noc create namespace maintenance-ns\n\n# 2. Create test VMs\nfor i in 1 2; do\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: test-vm-$i\n  namespace: maintenance-ns\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n        resources:\n          requests:\n            memory: 1Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\nEOF\ndone\n\n# 3. Select a node with VMs\nNODE_TO_MAINTAIN=$(oc get vmi -n maintenance-ns -o jsonpath='{.items[0].status.nodeName}')\n\n# 4. Cordon the node\noc adm cordon $NODE_TO_MAINTAIN\n\n# 5. Create taint\noc adm taint node $NODE_TO_MAINTAIN maintenance=true:NoSchedule\n\n# 6. Drain node with proper flags for VMs\noc adm drain $NODE_TO_MAINTAIN \\\n  --ignore-daemonsets \\\n  --delete-emptydir-data \\\n  --force \\\n  --pod-selector='kubevirt.io/domain' \\\n  --timeout=300s\n\n# 7. Verify VMs migrated\noc get vmi -n maintenance-ns -o wide\n\n# 8. Uncordon after maintenance (simulated)\n# oc adm uncordon $NODE_TO_MAINTAIN\n# oc adm taint node $NODE_TO_MAINTAIN maintenance-",
+      "sections": [
+        {
+          "title": "Node Maintenance and VM Evacuation",
+          "notice": "Prepare a node for maintenance by safely evacuating all VMs. Work in the maintenance-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'maintenance-ns'",
+            "Create two test VirtualMachines to simulate workload",
+            "Identify a worker node running at least one VM",
+            "Cordon the node to prevent new pod scheduling",
+            "Add a taint 'maintenance=true:NoSchedule' to the node",
+            "Drain the node using proper flags for VirtualMachineInstances",
+            "Use --ignore-daemonsets, --delete-emptydir-data, and --force flags",
+            "Verify all VMs have migrated to other nodes",
+            "Document the commands to uncordon and remove taint after maintenance"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task14",
+      "title": "Clone VM and Manage VM Templates",
+      "solution": "# 1. Create namespace\noc create namespace template-clone-ns\n\n# 2. Create custom template\noc create -f - <<EOF\napiVersion: template.openshift.io/v1\nkind: Template\nmetadata:\n  name: custom-rhel9-template\n  namespace: template-clone-ns\n  labels:\n    template.kubevirt.io/type: base\n  annotations:\n    description: Custom RHEL 9 template with preconfigured settings\n    tags: kubevirt,virtualmachine,linux,rhel\nparameters:\n- name: VM_NAME\n  description: Name of the Virtual Machine\n  required: true\n- name: VM_MEMORY\n  description: Memory allocation\n  value: \"2Gi\"\n- name: VM_CORES\n  description: Number of CPU cores\n  value: \"1\"\n- name: ROOT_PASSWORD\n  description: Root password for the VM\n  generate: expression\n  from: '[a-zA-Z0-9]{16}'\nobjects:\n- apiVersion: kubevirt.io/v1\n  kind: VirtualMachine\n  metadata:\n    name: \\${VM_NAME}\n    namespace: template-clone-ns\n  spec:\n    running: true\n    template:\n      metadata:\n        labels:\n          kubevirt.io/domain: \\${VM_NAME}\n      spec:\n        domain:\n          cpu:\n            cores: \\${{VM_CORES}}\n          devices:\n            disks:\n            - name: containerdisk\n              disk:\n                bus: virtio\n            - name: cloudinitdisk\n              disk:\n                bus: virtio\n            - name: datadisk\n              disk:\n                bus: virtio\n          resources:\n            requests:\n              memory: \\${VM_MEMORY}\n        volumes:\n        - name: containerdisk\n          containerDisk:\n            image: quay.io/containerdisks/rhel:9\n        - name: cloudinitdisk\n          cloudInitNoCloud:\n            userData: |\n              #cloud-config\n              user: root\n              password: \\${ROOT_PASSWORD}\n              chpasswd:\n                expire: false\n              ssh_pwauth: true\n        - name: datadisk\n          dataVolume:\n            name: \\${VM_NAME}-data\n- apiVersion: cdi.kubevirt.io/v1beta1\n  kind: DataVolume\n  metadata:\n    name: \\${VM_NAME}-data\n    namespace: template-clone-ns\n  spec:\n    source:\n      blank: {}\n    pvc:\n      accessModes:\n      - ReadWriteOnce\n      resources:\n        requests:\n          storage: 10Gi\nEOF\n\n# 3. Create VM from template\noc process custom-rhel9-template \\\n  -p VM_NAME=source-vm \\\n  -p VM_MEMORY=2Gi \\\n  -p VM_CORES=2 \\\n  -n template-clone-ns | oc create -f -\n\n# 4. Wait for VM to be ready\noc wait --for=condition=Ready vmi/source-vm -n template-clone-ns --timeout=300s\n\n# 5. Clone the VM\noc create -f - <<EOF\napiVersion: clone.kubevirt.io/v1alpha1\nkind: VirtualMachineClone\nmetadata:\n  name: source-vm-clone-operation\n  namespace: template-clone-ns\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: source-vm\n  target:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: cloned-vm\nEOF\n\n# 6. Wait for clone to complete\noc wait --for=condition=Succeeded vmclone/source-vm-clone-operation -n template-clone-ns --timeout=600s\n\n# 7. Verify cloned VM\noc get vm cloned-vm -n template-clone-ns\noc get dv -n template-clone-ns",
+      "sections": [
+        {
+          "title": "VM Template Management and Cloning",
+          "notice": "Create a custom VM template and use it to provision and clone VMs. Work in the template-clone-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'template-clone-ns'",
+            "Create a custom Template named 'custom-rhel9-template' with parameters for VM_NAME, VM_MEMORY, and VM_CORES",
+            "Configure the template to include a DataVolume for persistent storage",
+            "Add cloud-init configuration with user credentials and SSH access",
+            "Process the template to create a VM named 'source-vm' with 2Gi memory and 2 cores",
+            "Wait for the VM to be fully operational",
+            "Create a VirtualMachineClone resource to clone 'source-vm' to 'cloned-vm'",
+            "Verify both the VM and its DataVolume are successfully cloned",
+            "Confirm the cloned VM can start independently"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task15",
+      "title": "Configure VM with Tolerations, Taints, and Eviction Strategy",
+      "solution": "# 1. Create namespace\noc create namespace eviction-strategy-ns\n\n# 2. Taint a worker node for specialized workloads\nWORKER_NODE=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[0].metadata.name}')\noc adm taint node $WORKER_NODE special=gpu:NoSchedule\n\n# 3. Create VM with tolerations and eviction strategy\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: resilient-vm\n  namespace: eviction-strategy-ns\nspec:\n  running: true\n  runStrategy: Always\n  template:\n    spec:\n      evictionStrategy: LiveMigrate\n      affinity:\n        nodeAffinity:\n          preferredDuringSchedulingIgnoredDuringExecution:\n          - weight: 100\n            preference:\n              matchExpressions:\n              - key: special\n                operator: In\n                values:\n                - gpu\n        podAntiAffinity:\n          preferredDuringSchedulingIgnoredDuringExecution:\n          - weight: 100\n            podAffinityTerm:\n              labelSelector:\n                matchLabels:\n                  kubevirt.io/domain: resilient-vm\n              topologyKey: kubernetes.io/hostname\n      tolerations:\n      - key: special\n        operator: Equal\n        value: gpu\n        effect: NoSchedule\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n          - name: datadisk\n            disk:\n              bus: virtio\n        resources:\n          requests:\n            memory: 4Gi\n            cpu: 2\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\n      - name: datadisk\n        dataVolume:\n          name: resilient-data\n---\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: resilient-data\n  namespace: eviction-strategy-ns\nspec:\n  source:\n    blank: {}\n  pvc:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 20Gi\nEOF\n\n# 4. Create second VM with LiveMigrate for high availability\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: ha-vm\n  namespace: eviction-strategy-ns\nspec:\n  running: true\n  runStrategy: Always\n  template:\n    spec:\n      evictionStrategy: LiveMigrate\n      domain:\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9\nEOF\n\n# 5. Verify VM placement\noc get vmi -n eviction-strategy-ns -o wide\n\n# 6. Test eviction strategy by draining node\n# oc adm drain $WORKER_NODE --ignore-daemonsets --delete-emptydir-data --pod-selector='kubevirt.io/domain=resilient-vm'",
+      "sections": [
+        {
+          "title": "Advanced VM Placement and Eviction Strategies",
+          "notice": "Configure VMs with tolerations, affinity rules, and eviction strategies for high availability. Work in the eviction-strategy-ns namespace",
+          "subtasks": [
+            "Create a new namespace named 'eviction-strategy-ns'",
+            "Select a worker node and add taint 'special=gpu:NoSchedule'",
+            "Create a VirtualMachine named 'resilient-vm' with runStrategy 'Always'",
+            "Configure evictionStrategy as 'LiveMigrate' for automatic migration during node drain",
+            "Add toleration to allow scheduling on the tainted node",
+            "Configure node affinity to prefer nodes with label 'special=gpu'",
+            "Add pod anti-affinity to prevent multiple instances on the same node",
+            "Attach a 20Gi DataVolume to the VM",
+            "Create a second VM named 'ha-vm' with LiveMigrate eviction strategy",
+            "Verify both VMs are protected against node failures through live migration"
+          ]
+        }
+      ]
+    }
+  ]
+}
