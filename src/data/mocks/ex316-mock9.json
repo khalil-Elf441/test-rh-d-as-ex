@@ -172,7 +172,7 @@
     {
       "id": "task09",
       "title": "Configure VM with SR-IOV network interface for high performance",
-      "solution": "# 1. Create SriovNetworkNodePolicy\noc create -f - <<EOF\napiVersion: sriovnetwork.openshift.io/v1\nkind: SriovNetworkNodePolicy\nmetadata:\n  name: intel-nic-policy\n  namespace: openshift-sriov-network-operator\nspec:\n  nodeSelector:\n    feature.node.kubernetes.io/network-sriov.capable: \"true\"\n  resourceName: intelnic\n  numVfs: 8\n  nicSelector:\n    vendor: \"8086\"\n    deviceID: \"158b\"\n  deviceType: vfio-pci\nEOF\n\n# 2. Create SriovNetwork\noc create -f - <<EOF\napiVersion: sriovnetwork.openshift.io/v1\nkind: SriovNetwork\nmetadata:\n  name: sriov-high-perf-network\n  namespace: openshift-sriov-network-operator\nspec:\n  resourceName: intelnic\n  networkNamespace: virt-prod\n  vlan: 500\nEOF\n\n# 3. Create VM with SR-IOV\noc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: high-perf-vm\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        cpu:\n          cores: 8\n          dedicatedCpuPlacement: true\n        devices:\n          interfaces:\n          - name: sriov-net\n            sriov: {}\n      networks:\n      - name: sriov-net\n        multus:\n          networkName: sriov-high-perf-network\nEOF",
+      "solution": "# 1. Create SriovNetworkNodePolicy\noc create -f - -n virt-prod <<EOF\napiVersion: sriovnetwork.openshift.io/v1\nkind: SriovNetworkNodePolicy\nmetadata:\n  name: intel-nic-policy\n  namespace: openshift-sriov-network-operator\nspec:\n  nodeSelector:\n    feature.node.kubernetes.io/network-sriov.capable: \"true\"\n  resourceName: intelnic\n  numVfs: 8\n  nicSelector:\n    vendor: \"8086\"\n    deviceID: \"158b\"\n  deviceType: vfio-pci\nEOF\n\n# 2. Create SriovNetwork\noc create -f - <<EOF\napiVersion: sriovnetwork.openshift.io/v1\nkind: SriovNetwork\nmetadata:\n  name: sriov-high-perf-network\n  namespace: openshift-sriov-network-operator\nspec:\n  resourceName: intelnic\n  networkNamespace: virt-prod\n  vlan: 500\nEOF\n\n# 3. Create VM with SR-IOV\noc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: high-perf-vm\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        cpu:\n          cores: 8\n          dedicatedCpuPlacement: true\n        devices:\n          interfaces:\n          - name: sriov-net\n            sriov: {}\n      networks:\n      - name: sriov-net\n        multus:\n          networkName: sriov-high-perf-network\nEOF",
       "sections": [
         {
           "title": "SR-IOV High-Performance Networking",
@@ -192,44 +192,7 @@
     {
       "id": "task10",
       "title": "Configure VM pool for horizontal scaling",
-      "solution": "# 1. Create VirtualMachinePool\noc create -f - -n virt-prod <<EOF\napiVersion: pool.kubevirt.io/v1alpha1\nkind: VirtualMachinePool
-metadata:
-  name: web-vm-pool
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: web-pool
-  virtualMachineTemplate:
-    metadata:
-      labels:
-        app: web-pool
-    spec:
-      running: true
-      template:
-        spec:
-          domain:
-            cpu:
-              cores: 2
-            devices:
-              disks:
-              - name: rootdisk
-                disk:
-                  bus: virtio
-            resources:
-              requests:
-                memory: 2Gi
-          volumes:
-          - name: rootdisk
-            containerDisk:
-              image: quay.io/containerdisks/fedora:latest
-EOF
-
-# 2. Scale the pool
-oc scale vmpool web-vm-pool --replicas=5 -n virt-prod
-
-# 3. Verify
-oc get vmi -n virt-prod -l app=web-pool",
+      "solution": "# 1. Create VirtualMachinePool\noc create -f - -n virt-prod <<EOF\napiVersion: pool.kubevirt.io/v1alpha1\nkind: VirtualMachinePool\nmetadata:\n  name: web-vm-pool\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: web-pool\n  virtualMachineTemplate:\n    metadata:\n      labels:\n        app: web-pool\n    spec:\n      running: true\n      template:\n        spec:\n          domain:\n            cpu:\n              cores: 2\n            devices:\n              disks:\n              - name: rootdisk\n                disk:\n                  bus: virtio\n            resources:\n              requests:\n                memory: 2Gi\n          volumes:\n          - name: rootdisk\n            containerDisk:\n              image: quay.io/containerdisks/fedora:latest\nEOF\n\n# 2. Scale the pool\noc scale vmpool web-vm-pool --replicas=5 -n virt-prod\n\n# 3. Verify\noc get vmi -n virt-prod -l app=web-pool",
       "sections": [
         {
           "title": "VM Pool and Horizontal Scaling",
@@ -248,16 +211,7 @@ oc get vmi -n virt-prod -l app=web-pool",
     {
       "id": "task11",
       "title": "Implement VM boot order and custom BIOS settings",
-      "solution": "# 1. Create ISO DataVolume\noc create -f - -n virt-prod <<EOF\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: rhel-iso\nspec:\n  source:\n    http:\n      url: http://mirror.example.com/rhel-9.2-x86_64-boot.iso\n  pvc:\n    accessModes:\n    - ReadOnlyMany\n    resources:\n      requests:\n        storage: 1Gi\nEOF
-
-# 2. Create VM with custom boot order
-oc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: custom-boot-vm\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: custom-boot-vm\n    spec:\n      domain:\n        cpu:\n          cores: 2\n        firmware:\n          bootloader:\n            bios:\n              useSerial: true\n          serial: \"custom-serial-12345\"\n          uuid: \"5d307ca9-b3ef-428c-8861-06e72d69f223\"\n        devices:\n          disks:\n          - name: cdrom\n            cdrom:\n              bus: sata\n              readonly: true\n            bootOrder: 1\n          - name: rootdisk\n            disk:\n              bus: virtio\n            bootOrder: 2\n          - name: datadisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n            bootOrder: 3\n        resources:\n          requests:\n            memory: 4Gi\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: cdrom\n        dataVolume:\n          name: rhel-iso\n      - name: rootdisk\n        persistentVolumeClaim:\n          claimName: custom-boot-vm-root\n      - name: datadisk\n        emptyDisk:\n          capacity: 20Gi\nEOF
-
-# 3. Create root disk PVC
-oc create -f - -n virt-prod <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: custom-boot-vm-root\nspec:\n  accessModes:\n  - ReadWriteOnce\n  resources:\n    requests:\n      storage: 50Gi\nEOF
-
-# 4. Verify boot order
-virtctl console custom-boot-vm -n virt-prod",
+      "solution": "# 1. Create ISO DataVolume\noc create -f - -n virt-prod <<EOF\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: rhel-iso\nspec:\n  source:\n    http:\n      url: http://mirror.example.com/rhel-9.2-x86_64-boot.iso\n  pvc:\n    accessModes:\n    - ReadOnlyMany\n    resources:\n      requests:\n        storage: 1Gi\nEOF\n\n# 2. Create VM with custom boot order\noc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: custom-boot-vm\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: custom-boot-vm\n    spec:\n      domain:\n        cpu:\n          cores: 2\n        firmware:\n          bootloader:\n            bios:\n              useSerial: true\n          serial: \"custom-serial-12345\"\n          uuid: \"5d307ca9-b3ef-428c-8861-06e72d69f223\"\n        devices:\n          disks:\n          - name: cdrom\n            cdrom:\n              bus: sata\n              readonly: true\n            bootOrder: 1\n          - name: rootdisk\n            disk:\n              bus: virtio\n            bootOrder: 2\n          - name: datadisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n            bootOrder: 3\n        resources:\n          requests:\n            memory: 4Gi\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: cdrom\n        dataVolume:\n          name: rhel-iso\n      - name: rootdisk\n        persistentVolumeClaim:\n          claimName: custom-boot-vm-root\n      - name: datadisk\n        emptyDisk:\n          capacity: 20Gi\nEOF\n\n# 3. Create root disk PVC\noc create -f - -n virt-prod <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: custom-boot-vm-root\nspec:\n  accessModes:\n  - ReadWriteOnce\n  resources:\n    requests:\n      storage: 50Gi\nEOF\n\n# 4. Verify boot order\nvirtctl console custom-boot-vm -n virt-prod",
       "sections": [
         {
           "title": "Custom Boot Configuration and BIOS Settings",
@@ -278,22 +232,7 @@ virtctl console custom-boot-vm -n virt-prod",
     {
       "id": "task12",
       "title": "Configure VM memory hotplug and CPU hotplug",
-      "solution": "# 1. Create VM with hotplug capabilities
-oc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: hotplug-capable-vm\nspec:\n  running: true\n  dataVolumeTemplates:\n  - metadata:\n      name: hotplug-vm-root\n    spec:\n      source:\n        http:\n          url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2\n      pvc:\n        accessModes:\n        - ReadWriteOnce\n        resources:\n          requests:\n            storage: 30Gi\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: hotplug-capable-vm\n    spec:\n      domain:\n        cpu:\n          cores: 4\n          sockets: 1\n          threads: 1\n          maxSockets: 2\n        memory:\n          guest: 8Gi\n          maxGuest: 16Gi\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 8Gi\n            cpu: 2000m\n          limits:\n            memory: 16Gi\n            cpu: 8000m\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: hotplug-vm-root\nEOF
-
-# 2. Wait for VM
-oc wait --for=condition=Ready vmi/hotplug-capable-vm -n virt-prod --timeout=300s
-
-# 3. Hot-add CPU
-oc patch vmi hotplug-capable-vm -n virt-prod --type=merge -p '{\"spec\":{\"domain\":{\"cpu\":{\"sockets\":2}}}}'
-
-# 4. Hot-add Memory
-oc patch vmi hotplug-capable-vm -n virt-prod --type=merge -p '{\"spec\":{\"domain\":{\"memory\":{\"guest\":\"12Gi\"}}}}'
-
-# 5. Verify inside VM
-virtctl console hotplug-capable-vm -n virt-prod
-# lscpu
-# free -h",
+      "solution": "# 1. Create VM with hotplug capabilities\noc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: hotplug-capable-vm\nspec:\n  running: true\n  dataVolumeTemplates:\n  - metadata:\n      name: hotplug-vm-root\n    spec:\n      source:\n        http:\n          url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2\n      pvc:\n        accessModes:\n        - ReadWriteOnce\n        resources:\n          requests:\n            storage: 30Gi\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: hotplug-capable-vm\n    spec:\n      domain:\n        cpu:\n          cores: 4\n          sockets: 1\n          threads: 1\n          maxSockets: 2\n        memory:\n          guest: 8Gi\n          maxGuest: 16Gi\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 8Gi\n            cpu: 2000m\n          limits:\n            memory: 16Gi\n            cpu: 8000m\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: hotplug-vm-root\nEOF\n\n# 2. Wait for VM\noc wait --for=condition=Ready vmi/hotplug-capable-vm -n virt-prod --timeout=300s\n\n# 3. Hot-add CPU\noc patch vmi hotplug-capable-vm -n virt-prod --type=merge -p '{\"spec\":{\"domain\":{\"cpu\":{\"sockets\":2}}}}'\n\n# 4. Hot-add Memory\noc patch vmi hotplug-capable-vm -n virt-prod --type=merge -p '{\"spec\":{\"domain\":{\"memory\":{\"guest\":\"12Gi\"}}}}'\n\n# 5. Verify inside VM\nvirtctl console hotplug-capable-vm -n virt-prod\n# lscpu\n# free -h",
       "sections": [
         {
           "title": "CPU and Memory Hotplug",
@@ -314,20 +253,7 @@ virtctl console hotplug-capable-vm -n virt-prod
     {
       "id": "task13",
       "title": "Implement advanced NetworkPolicy for VM traffic control",
-      "solution": "# 1. Create default deny policy
-oc create -f - -n virt-prod <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: default-deny-all\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  - Egress\nEOF
-
-# 2. Allow DNS egress
-oc create -f - -n virt-prod <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-dns-egress\nspec:\n  podSelector: {}\n  policyTypes:\n  - Egress\n  egress:\n  - to:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: openshift-dns\n    ports:\n    - protocol: UDP\n      port: 53\nEOF
-
-# 3. Allow web to database
-oc create -f - -n virt-prod <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: web-to-database\nspec:\n  podSelector:\n    matchLabels:\n      app: database\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - podSelector:\n        matchLabels:\n          tier: frontend\n    ports:\n    - protocol: TCP\n      port: 5432\n    - protocol: TCP\n      port: 3306\nEOF
-
-# 4. Allow ingress to frontend
-oc create -f - -n virt-prod <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-ingress-to-frontend\nspec:\n  podSelector:\n    matchLabels:\n      tier: frontend\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: openshift-ingress\n    ports:\n    - protocol: TCP\n      port: 80\n    - protocol: TCP\n      port: 443\nEOF
-
-# 5. Verify policies
-oc get networkpolicies -n virt-prod",
+      "solution": "# 1. Create default deny policy\noc create -f - -n virt-prod <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: default-deny-all\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  - Egress\nEOF\n\n# 2. Allow DNS egress\noc create -f - -n virt-prod <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-dns-egress\nspec:\n  podSelector: {}\n  policyTypes:\n  - Egress\n  egress:\n  - to:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: openshift-dns\n    ports:\n    - protocol: UDP\n      port: 53\nEOF\n\n# 3. Allow web to database\noc create -f - -n virt-prod <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: web-to-database\nspec:\n  podSelector:\n    matchLabels:\n      app: database\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - podSelector:\n        matchLabels:\n          tier: frontend\n    ports:\n    - protocol: TCP\n      port: 5432\n    - protocol: TCP\n      port: 3306\nEOF\n\n# 4. Allow ingress to frontend\noc create -f - -n virt-prod <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-ingress-to-frontend\nspec:\n  podSelector:\n    matchLabels:\n      tier: frontend\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: openshift-ingress\n    ports:\n    - protocol: TCP\n      port: 80\n    - protocol: TCP\n      port: 443\nEOF\n\n# 5. Verify policies\noc get networkpolicies -n virt-prod",
       "sections": [
         {
           "title": "Advanced Network Security with NetworkPolicy",
@@ -347,17 +273,7 @@ oc get networkpolicies -n virt-prod",
     {
       "id": "task14",
       "title": "Configure VM snapshot with application-consistent state",
-      "solution": "# 1. Create VM with data volume
-oc create -f - -n virt-prod <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: app-data-volume\nspec:\n  accessModes:\n  - ReadWriteOnce\n  resources:\n    requests:\n      storage: 100Gi\nEOF
-
-# 2. Create VM
-oc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: app-with-hooks-vm\nspec:\n  running: true\n  dataVolumeTemplates:\n  - metadata:\n      name: app-with-hooks-vm-root\n    spec:\n      source:\n        http:\n          url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2\n      pvc:\n        accessModes:\n        - ReadWriteOnce\n        resources:\n          requests:\n            storage: 30Gi\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: app-with-hooks-vm\n    spec:\n      domain:\n        cpu:\n          cores: 4\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: datadisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 8Gi\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: app-with-hooks-vm-root\n      - name: datadisk\n        persistentVolumeClaim:\n          claimName: app-data-volume\nEOF
-
-# 3. Create snapshot
-oc create -f - -n virt-prod <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineSnapshot\nmetadata:\n  name: app-consistent-snapshot\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: app-with-hooks-vm\n  failureDeadline: 5m\nEOF
-
-# 4. Monitor snapshot
-oc get vmsnapshot app-consistent-snapshot -n virt-prod -w",
+      "solution": "# 1. Create VM with data volume\noc create -f - -n virt-prod <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: app-data-volume\nspec:\n  accessModes:\n  - ReadWriteOnce\n  resources:\n    requests:\n      storage: 100Gi\nEOF\n\n# 2. Create VM\noc create -f - -n virt-prod <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: app-with-hooks-vm\nspec:\n  running: true\n  dataVolumeTemplates:\n  - metadata:\n      name: app-with-hooks-vm-root\n    spec:\n      source:\n        http:\n          url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2\n      pvc:\n        accessModes:\n        - ReadWriteOnce\n        resources:\n          requests:\n            storage: 30Gi\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: app-with-hooks-vm\n    spec:\n      domain:\n        cpu:\n          cores: 4\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: datadisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 8Gi\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: app-with-hooks-vm-root\n      - name: datadisk\n        persistentVolumeClaim:\n          claimName: app-data-volume\nEOF\n\n# 3. Create snapshot\noc create -f - -n virt-prod <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineSnapshot\nmetadata:\n  name: app-consistent-snapshot\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: app-with-hooks-vm\n  failureDeadline: 5m\nEOF\n\n# 4. Monitor snapshot\noc get vmsnapshot app-consistent-snapshot -n virt-prod -w",
       "sections": [
         {
           "title": "Application-Consistent VM Snapshots",
@@ -378,62 +294,7 @@ oc get vmsnapshot app-consistent-snapshot -n virt-prod -w",
     {
       "id": "task15",
       "title": "Complex troubleshooting: VM networking and storage issues",
-      "solution": "# Scenario: VM 'problematic-vm' exists but has multiple issues
-
-# 1. Investigate VM status
-oc get vm problematic-vm -n virt-prod
-oc get vmi problematic-vm -n virt-prod
-oc describe vm problematic-vm -n virt-prod
-
-# 2. Check events
-oc get events -n virt-prod --sort-by='.lastTimestamp' | grep problematic-vm
-
-# 3. Check PVC status
-oc get pvc -n virt-prod | grep problematic-vm
-oc describe pvc problematic-vm-disk -n virt-prod
-
-# 4. Check DataVolume import
-oc get dv problematic-vm-disk -n virt-prod
-oc describe dv problematic-vm-disk -n virt-prod
-
-# 5. Check import pod logs
-IMPORT_POD=$(oc get pods -n virt-prod | grep importer | grep problematic-vm | awk '{print $1}')
-oc logs $IMPORT_POD -n virt-prod
-
-# 6. Check node resources
-oc describe nodes | grep -A 10 \"Allocated resources\"
-
-# 7. Check NetworkAttachmentDefinitions
-oc get network-attachment-definitions -n virt-prod
-
-# 8. Check virt-launcher pod
-oc get pods -n virt-prod | grep virt-launcher | grep problematic-vm
-LAUNCHER_POD=$(oc get pods -n virt-prod -l kubevirt.io/domain=problematic-vm -o name)
-oc logs $LAUNCHER_POD -n virt-prod -c compute
-
-# 9. Check HyperConverged health
-oc get hco -n openshift-cnv
-oc get pods -n openshift-cnv | grep -v Running
-
-# 10. Check virt-handler
-oc get pods -n openshift-cnv | grep virt-handler
-
-# Common fixes:
-# Fix PVC storage class
-oc patch pvc problematic-vm-disk -n virt-prod -p '{\"spec\":{\"storageClassName\":\"ocs-storagecluster-ceph-rbd\"}}'
-
-# Reduce resource requests
-oc patch vm problematic-vm -n virt-prod --type=merge -p '{\"spec\":{\"template\":{\"spec\":{\"domain\":{\"resources\":{\"requests\":{\"memory\":\"2Gi\"}}}}}}}'
-
-# Fix network reference
-oc patch vm problematic-vm -n virt-prod --type=json -p '[{\"op\":\"replace\",\"path\":\"/spec/template/spec/networks/1/multus/networkName\",\"value\":\"correct-network-name\"}]'
-
-# Restart VM
-oc virt restart problematic-vm -n virt-prod
-
-# Verify
-oc wait --for=condition=Ready vmi/problematic-vm -n virt-prod --timeout=300s
-virtctl console problematic-vm -n virt-prod",
+      "solution": "# Scenario: VM 'problematic-vm' exists but has multiple issues\n\n# 1. Investigate VM status\noc get vm problematic-vm -n virt-prod\noc get vmi problematic-vm -n virt-prod\noc describe vm problematic-vm -n virt-prod\n\n# 2. Check events\noc get events -n virt-prod --sort-by='.lastTimestamp' | grep problematic-vm\n\n# 3. Check PVC status\noc get pvc -n virt-prod | grep problematic-vm\noc describe pvc problematic-vm-disk -n virt-prod\n\n# 4. Check DataVolume import\noc get dv problematic-vm-disk -n virt-prod\noc describe dv problematic-vm-disk -n virt-prod\n\n# 5. Check import pod logs\nIMPORT_POD=$(oc get pods -n virt-prod | grep importer | grep problematic-vm | awk '{print $1}')\noc logs $IMPORT_POD -n virt-prod\n\n# 6. Check node resources\noc describe nodes | grep -A 10 \"Allocated resources\"\n\n# 7. Check NetworkAttachmentDefinitions\noc get network-attachment-definitions -n virt-prod\n\n# 8. Check virt-launcher pod\noc get pods -n virt-prod | grep virt-launcher | grep problematic-vm\nLAUNCHER_POD=$(oc get pods -n virt-prod -l kubevirt.io/domain=problematic-vm -o name)\noc logs $LAUNCHER_POD -n virt-prod -c compute\n\n# 9. Check HyperConverged health\noc get hco -n openshift-cnv\noc get pods -n openshift-cnv | grep -v Running\n\n# 10. Check virt-handler\noc get pods -n openshift-cnv | grep virt-handler\n\n# Common fixes:\n# Fix PVC storage class\noc patch pvc problematic-vm-disk -n virt-prod -p '{\"spec\":{\"storageClassName\":\"ocs-storagecluster-ceph-rbd\"}}'\n\n# Reduce resource requests\noc patch vm problematic-vm -n virt-prod --type=merge -p '{\"spec\":{\"template\":{\"spec\":{\"domain\":{\"resources\":{\"requests\":{\"memory\":\"2Gi\"}}}}}}}'\n\n# Fix network reference\noc patch vm problematic-vm -n virt-prod --type=json -p '[{\"op\":\"replace\",\"path\":\"/spec/template/spec/networks/1/multus/networkName\",\"value\":\"correct-network-name\"}]'\n\n# Restart VM\noc virt restart problematic-vm -n virt-prod\n\n# Verify\noc wait --for=condition=Ready vmi/problematic-vm -n virt-prod --timeout=300s\nvirtctl console problematic-vm -n virt-prod",
       "sections": [
         {
           "title": "Complex Troubleshooting Scenario",
@@ -455,3 +316,5 @@ virtctl console problematic-vm -n virt-prod",
         }
       ]
     }
+  ]
+}
