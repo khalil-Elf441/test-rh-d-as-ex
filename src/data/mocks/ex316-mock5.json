@@ -58,7 +58,8 @@
     {
       "id": "task04",
       "title": "Create a custom template from the API server VM",
-      "solution": "# 1. Create Namespace\noc create namespace app-templates\n\n# 2. Find source PVC\nSOURCE_PVC=$(oc get dv -n api-prod -l kubevirt.io/domain=api-vm -o jsonpath='{.items[0].metadata.name}')\n\n# 3. Create Template\noc create -f - -n app-templates <<EOF\napiVersion: template.openshift.io/v1\nkind: Template\nmetadata:\n  name: api-server-template\nobjects:\n- apiVersion: kubevirt.io/v1\n  kind: VirtualMachine\n  metadata:\n    name: \"${NAME}\"\n    labels:\n      app.version: \"${APP_VERSION}\"\n  spec:\n    dataVolumeTemplates:\n    - apiVersion: cdi.kubevirt.io/v1beta1\n      kind: DataVolume\n      metadata:\n        name: \"${NAME}-rootdisk\"\n      spec:\n        source:\n          pvc:\n            name: $SOURCE_PVC\n            namespace: api-prod\n    template: {}\nparameters:\n- name: NAME\n  required: true\n- name: APP_VERSION\n  value: \"1.0\"\nEOF\n",
+      "solution": "# 1. Create Namespace\noc create namespace app-templates\n\n# 2. Find source PVC\nSOURCE_PVC=$(oc get dv -n api-prod -l kubevirt.io/domain=api-vm -o jsonpath='{.items[0].metadata.name}')\n\n# 3. Create Template\noc create -f - -n app-templates <<EOF\napiVersion: template.openshift.io/v1\nkind: Template\nmetadata:\n  name: api-server-template\nobjects:\n- apiVersion: kubevirt.io/v1\n  kind: VirtualMachine\n  metadata:\n    name: \"${NAME}\"\n    labels:\n      app.version: \"${APP_VERSION}\"\n  spec:\n    dataVolumeTemplates:\n    - apiVersion: cdi.kubevirt.io/v1beta1\n      kind: DataVolume\n      metadata:\n        name: \"${NAME}-rootdisk\"\n      spec:\n        source:\n          pvc:\n            name: $SOURCE_PVC\n            namespace: api-prod\n    template: {}
+parameters:\n- name: NAME\n  required: true\n- name: APP_VERSION\n  value: \"1.0\"\nEOF\n",
       "sections": [
         {
           "title": "Template Generation",
@@ -75,7 +76,7 @@
     {
       "id": "task05",
       "title": "Deploy a staging version of the API server from the template",
-      "solution": "# 1. Create Namespace\noc create namespace api-staging\n\n# 2. Deploy from Template with Parameters\noc new-app --template=app-templates/api-server-template --param=NAME=api-staging-vm --param=APP_VERSION=v1.1-staging -n api-staging\n\n# 3. Add cloud-init data via patch\noc patch vm api-staging-vm -n api-staging --type merge -p '{\"spec\":{\"template\":{\"spec\":{\"volumes\":[{\"name\":\"cloudinitdisk\",\"cloudInitNoCloud\":{\"userData\":\"#cloud-config\\nwrite_files:\\n- path: /etc/app_version\\n  content: staging\"}}]}}}}'\n\n# 4. Start the VM\noc virt start api-staging-vm -n api-staging\n",
+      "solution": "# 1. Create Namespace\noc create namespace api-staging\n\n# 2. Deploy from Template with Parameters\noc new-app --template=app-templates/api-server-template --param=NAME=api-staging-vm --param=APP_VERSION=v1.1-staging -n api-staging\n\n# 3. Add cloud-init data via patch\noc patch vm api-staging-vm -n api-staging --type merge -p '{\"spec\":{\"template\":{\"spec\":{\"volumes\":[{\"name\":\"cloudinitdisk\",\"cloudInitNoCloud\":{\"userData\":\"#cloud-config\\nwrite_files:\n- path: /etc/app_version\n  content: staging\"}}]}}}}'\n\n# 4. Start the VM\noc virt start api-staging-vm -n api-staging\n",
       "sections": [
         {
           "title": "Template Deployment with Cloud-Init",
@@ -109,7 +110,7 @@
     {
       "id": "task07",
       "title": "Clone the production database for development use",
-      "solution": "# 1. Create Namespace\noc create namespace db-dev\n\n# 2. Create Clone CR with target namespace\noc create -f - -n db-prod <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineClone\nmetadata:\n  name: db-dev-clone\nspec:\n  source:\\n    kind: VirtualMachine\\n    name: db-vm\\n  target:\\n    name: db-dev-clone\\n    namespace: db-dev\\nEOF\n\n# 3. Verify\noc get vm db-dev-clone -n db-dev\n",
+      "solution": "# 1. Create Namespace\noc create namespace db-dev\n\n# 2. Create Clone CR with target namespace\noc create -f - -n db-prod <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineClone\nmetadata:\n  name: db-dev-clone\nspec:\n  source:\n    kind: VirtualMachine\n    name: db-vm\n  target:\n    name: db-dev-clone\n    namespace: db-dev\nEOF\n\n# 3. Verify\noc get vm db-dev-clone -n db-dev\n",
       "sections": [
         {
           "title": "VM Cloning",
@@ -160,7 +161,7 @@
     {
       "id": "task10",
       "title": "Configure a health probe for the API server",
-      "solution": "# 1. Add Liveness Probe via patch\noc patch vm api-vm -n api-prod --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/livenessProbe\", \"value\": {\"httpGet\": {\"port\": 5000, \"path\": \"/health\"}, \"initialDelaySeconds\": 60}}}]'\n\n# 2. Verify\n# oc get vm api-vm -n api-prod -o yaml\n",
+      "solution": "# 1. Add Liveness Probe via patch\noc patch vm api-vm -n api-prod --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/livenessProbe\", \"value\": {\"httpGet\": {\"port\": 5000, \"path\": \"/health\"}, \"initialDelaySeconds\": 60}}]'\n\n# 2. Verify\n# oc get vm api-vm -n api-prod -o yaml\n",
       "sections": [
         {
           "title": "Liveness Probe",

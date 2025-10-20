@@ -151,7 +151,7 @@
       "sections": [
         {
           "title": "DataVolume Cloning",
-          "notice": "Create a backup copy of the 'latency-critical-vm\'s' root disk. Perform actions in the 'realtime-apps' namespace.",
+          "notice": "Create a backup copy of the 'latency-critical-vm's' root disk. Perform actions in the 'realtime-apps' namespace.",
           "subtasks": [
             "Identify the root PVC for the 'latency-critical-vm'.",
             "Create a DataVolume that clones this PVC to a new PVC named 'latency-vm-disk-backup'.",
