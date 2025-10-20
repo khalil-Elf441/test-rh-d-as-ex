@@ -1,0 +1,277 @@
+{
+  "examId": "ex316-7",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 7: Production Environment",
+  "description": "A comprehensive 15-task exam covering advanced virtualization scenarios including VM lifecycle management, storage configuration, networking, migration, and troubleshooting in production environments.",
+  "timeLimit": "4h",
+  "prerequisites": "# This script should be run once before starting the exam.\n# It simulates the base environment provided to the candidate.\n\necho \"Creating prerequisite resources for Mock 2...\"\n\n# Create a sample RHEL9 base image\noc create namespace openshift-virtualization-os-images 2>/dev/null || true\n\n# Assume default storage class is available\n# Assume OpenShift Virtualization operator is installed\n\necho \"Prerequisite setup complete. You can now start the exam.\"\n",
+  "tasks": [
+    {
+      "id": "task01",
+      "title": "Deploy OpenShift Virtualization and configure HyperConverged",
+      "solution": "# 1. Create namespace\noc create namespace openshift-cnv\n\n# 2. Install operator via OperatorHub\n# (This is done via UI or by creating Subscription resource)\noc create -f - <<EOF\napiVersion: operators.coreos.com/v1alpha1\nkind: Subscription\nmetadata:\n  name: kubevirt-hyperconverged\n  namespace: openshift-cnv\nspec:\n  channel: stable\n  name: kubevirt-hyperconverged\n  source: redhat-operators\n  sourceNamespace: openshift-marketplace\nEOF\n\n# 3. Wait for operator to be ready\noc wait --for=condition=Ready pod -l name=kubevirt-hyperconverged-operator -n openshift-cnv --timeout=300s\n\n# 4. Create HyperConverged instance\noc create -f - <<EOF\napiVersion: hco.kubevirt.io/v1beta1\nkind: HyperConverged\nmetadata:\n  name: kubevirt-hyperconverged\n  namespace: openshift-cnv\nspec: {}\nEOF\n\n# 5. Verify installation\noc get hco -n openshift-cnv\noc get csv -n openshift-cnv",
+      "sections": [
+        {
+          "title": "Operator Installation and Configuration",
+          "notice": "Install and configure OpenShift Virtualization. All resources should be created in the 'openshift-cnv' namespace.",
+          "subtasks": [
+            "Create the namespace 'openshift-cnv' if it doesn't exist.",
+            "Install the 'kubevirt-hyperconverged' operator from RedHat OperatorHub.",
+            "Create a HyperConverged resource named 'kubevirt-hyperconverged' with default configuration.",
+            "Verify all operator pods are running and the HyperConverged resource shows Available status."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task02",
+      "title": "Create a VM using containerDisk image source",
+      "solution": "# 1. Create namespace\noc create namespace vm-apps\n\n# 2. Create VM with containerDisk\noc create -f - -n vm-apps <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: fedora-container-vm\n  labels:\n    app: fedora-vm\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: fedora-container-vm\n    spec:\n      domain:\n        cpu:\n          cores: 2\n        devices:\n          disks:\n          - name: containerdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 4Gi\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/fedora:latest\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            user: fedora\n            password: fedora123\n            chpasswd: { expire: False }\nEOF",
+      "sections": [
+        {
+          "title": "VM Provisioning with ContainerDisk",
+          "notice": "Create a Fedora VM using a container disk image. Perform all actions in the 'vm-apps' namespace.",
+          "subtasks": [
+            "Create a new namespace named 'vm-apps'.",
+            "Create a VM named 'fedora-container-vm' using the containerDisk from 'quay.io/containerdisks/fedora:latest'.",
+            "Configure the VM with 2 CPU cores and 4Gi of memory.",
+            "Set the VM to start automatically (running: true).",
+            "Use cloud-init to create a user 'fedora' with password 'fedora123'."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task03",
+      "title": "Import a VM disk image using DataVolume",
+      "solution": "# 1. Create DataVolume\noc create -f - -n vm-apps <<EOF\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: rhel9-golden-image\nspec:\n  source:\n    http:\n      url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2\n  pvc:\n    accessModes:\n    - ReadWriteMany\n    resources:\n      requests:\n        storage: 30Gi\n    storageClassName: ocs-storagecluster-ceph-rbd\nEOF\n\n# 2. Monitor import\noc get dv rhel9-golden-image -n vm-apps -w",
+      "sections": [
+        {
+          "title": "DataVolume Import",
+          "notice": "Import a RHEL9-compatible cloud image for use as a base image. Work in the 'vm-apps' namespace.",
+          "subtasks": [
+            "Create a DataVolume named 'rhel9-golden-image'.",
+            "Import the image from URL: 'https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2'.",
+            "Use storage class 'ocs-storagecluster-ceph-rbd' with 30Gi capacity.",
+            "Set accessMode to ReadWriteMany to allow multiple VMs to use this as a base.",
+            "Wait for the import to complete successfully."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task04",
+      "title": "Deploy a production web server VM with cloud-init customization",
+      "solution": "# 1. Create namespace\noc create namespace production\n\n# 2. Create VM with cloud-init\noc create -f - -n production <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: web-prod-01\n  labels:\n    app: webserver\n    env: production\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: web-prod-01\n    spec:\n      domain:\n        cpu:\n          cores: 2\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 4Gi\n            cpu: 1000m\n          limits:\n            memory: 8Gi\n            cpu: 2000m\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: web-prod-01-disk\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            hostname: web-prod-01.example.com\n            user: admin\n            password: RedHat123!\n            chpasswd: { expire: False }\n            packages:\n              - httpd\n              - mod_ssl\n            runcmd:\n              - systemctl enable --now httpd\n              - firewall-cmd --permanent --add-service=http\n              - firewall-cmd --permanent --add-service=https\n              - firewall-cmd --reload\n---\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: web-prod-01-disk\n  namespace: production\nspec:\n  source:\n    pvc:\n      namespace: vm-apps\n      name: rhel9-golden-image\n  pvc:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 30Gi\nEOF",
+      "sections": [
+        {
+          "title": "Production Web Server Deployment",
+          "notice": "Deploy a production-ready web server VM with proper resource limits and cloud-init configuration.",
+          "subtasks": [
+            "Create a new namespace named 'production'.",
+            "Create a VM named 'web-prod-01' using a clone of the 'rhel9-golden-image' DataVolume.",
+            "Configure resource requests: 1000m CPU and 4Gi memory; limits: 2000m CPU and 8Gi memory.",
+            "Use cloud-init to set hostname to 'web-prod-01.example.com'.",
+            "Install httpd and mod_ssl packages, enable and start the httpd service.",
+            "Configure the firewall to allow HTTP and HTTPS traffic."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task05",
+      "title": "Create a secondary network using Multus CNI",
+      "solution": "# 1. Create NetworkAttachmentDefinition\noc create -f - -n production <<EOF\napiVersion: k8s.cni.cncf.io/v1\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: backend-network\nspec:\n  config: |\n    {\n      \"cniVersion\": \"0.3.1\",\n      \"name\": \"backend-network\",\n      \"type\": \"cnv-bridge\",\n      \"bridge\": \"br-backend\",\n      \"vlan\": 200,\n      \"ipam\": {\n        \"type\": \"host-local\",\n        \"subnet\": \"10.200.0.0/16\",\n        \"rangeStart\": \"10.200.1.10\",\n        \"rangeEnd\": \"10.200.1.250\",\n        \"gateway\": \"10.200.0.1\"\n      }\n    }\nEOF",
+      "sections": [
+        {
+          "title": "Multus Network Configuration",
+          "notice": "Create a secondary network for backend communication. Work in the 'production' namespace.",
+          "subtasks": [
+            "Create a NetworkAttachmentDefinition named 'backend-network'.",
+            "Use the cnv-bridge CNI plugin with bridge name 'br-backend'.",
+            "Configure VLAN ID 200.",
+            "Set up IPAM with subnet 10.200.0.0/16, IP range 10.200.1.10 to 10.200.1.250.",
+            "Set gateway to 10.200.0.1."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task06",
+      "title": "Attach VM to multiple networks",
+      "solution": "# 1. Stop the VM\noc virt stop web-prod-01 -n production\n\n# 2. Patch VM to add second network\noc patch vm web-prod-01 -n production --type=json -p '[{\n  \"op\": \"add\",\n  \"path\": \"/spec/template/spec/domain/devices/interfaces/-\",\n  \"value\": {\n    \"name\": \"backend\",\n    \"bridge\": {}\n  }\n},{\n  \"op\": \"add\",\n  \"path\": \"/spec/template/spec/networks/-\",\n  \"value\": {\n    \"name\": \"backend\",\n    \"multus\": {\n      \"networkName\": \"backend-network\"\n    }\n  }\n}]'\n\n# 3. Start the VM\noc virt start web-prod-01 -n production\n\n# 4. Verify\noc get vmi web-prod-01 -n production -o jsonpath='{.spec.networks[*].name}'",
+      "sections": [
+        {
+          "title": "Multi-homed VM Configuration",
+          "notice": "Attach the 'web-prod-01' VM to the 'backend-network' in addition to the default network.",
+          "subtasks": [
+            "Stop the 'web-prod-01' VM.",
+            "Add a second network interface connected to 'backend-network'.",
+            "The interface should use bridge binding type.",
+            "Start the VM and verify it has two network interfaces.",
+            "Verify inside the guest OS that both interfaces are configured."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task07",
+      "title": "Expose VM via Service and Route",
+      "solution": "# 1. Create Service\noc create -f - -n production <<EOF\napiVersion: v1\nkind: Service\nmetadata:\n  name: web-prod-service\nspec:\n  selector:\n    kubevirt.io/domain: web-prod-01\n  ports:\n  - name: http\n    port: 80\n    targetPort: 80\n    protocol: TCP\n  - name: https\n    port: 443\n    targetPort: 443\n    protocol: TCP\n  type: ClusterIP\nEOF\n\n# 2. Create Route with TLS\noc create route edge web-prod-route \\\n  --service=web-prod-service \\\n  --hostname=web.apps.ocp.example.com \\\n  --port=80 \\\n  -n production\n\n# 3. Verify\noc get route web-prod-route -n production\ncurl -k https://web.apps.ocp.example.com",
+      "sections": [
+        {
+          "title": "Service and Route Configuration",
+          "notice": "Expose the web server VM externally with TLS termination. Work in the 'production' namespace.",
+          "subtasks": [
+            "Create a ClusterIP Service named 'web-prod-service' for the 'web-prod-01' VM.",
+            "Expose both port 80 (HTTP) and 443 (HTTPS).",
+            "Create an edge-terminated Route named 'web-prod-route' with hostname 'web.apps.ocp.example.com'.",
+            "Verify the route is accessible from outside the cluster."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task08",
+      "title": "Add persistent storage volume to running VM",
+      "solution": "# 1. Create PVC for data\noc create -f - -n production <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: web-data-volume\nspec:\n  accessModes:\n  - ReadWriteOnce\n  volumeMode: Filesystem\n  resources:\n    requests:\n      storage: 50Gi\n  storageClassName: ocs-storagecluster-ceph-rbd\nEOF\n\n# 2. Stop VM\noc virt stop web-prod-01 -n production\n\n# 3. Add volume to VM\noc patch vm web-prod-01 -n production --type=json -p '[{\n  \"op\": \"add\",\n  \"path\": \"/spec/template/spec/domain/devices/disks/-\",\n  \"value\": {\n    \"name\": \"datadisk\",\n    \"disk\": {\n      \"bus\": \"virtio\"\n    }\n  }\n},{\n  \"op\": \"add\",\n  \"path\": \"/spec/template/spec/volumes/-\",\n  \"value\": {\n    \"name\": \"datadisk\",\n    \"persistentVolumeClaim\": {\n      \"claimName\": \"web-data-volume\"\n    }\n  }\n}]'\n\n# 4. Start VM\noc virt start web-prod-01 -n production\n\n# 5. Inside guest OS, format and mount\n# mkfs.xfs /dev/vdb\n# mkdir /var/www/data\n# mount /dev/vdb /var/www/data\n# echo \"/dev/vdb /var/www/data xfs defaults 0 0\" >> /etc/fstab",
+      "sections": [
+        {
+          "title": "Hot-add Storage Volume",
+          "notice": "Add a persistent data volume to the 'web-prod-01' VM for storing web content.",
+          "subtasks": [
+            "Create a 50Gi PVC named 'web-data-volume' with Filesystem volumeMode.",
+            "Stop the 'web-prod-01' VM.",
+            "Attach the PVC as an additional disk to the VM.",
+            "Start the VM and verify the new disk is visible.",
+            "Inside the guest OS, format the disk as XFS and mount it at /var/www/data.",
+            "Configure the mount to persist across reboots."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task09",
+      "title": "Create and verify VM snapshot",
+      "solution": "# 1. Create snapshot\noc create -f - -n production <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineSnapshot\nmetadata:\n  name: web-prod-01-snapshot-baseline\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: web-prod-01\nEOF\n\n# 2. Monitor snapshot creation\noc get vmsnapshot web-prod-01-snapshot-baseline -n production -w\n\n# 3. Verify snapshot is ready\noc get vmsnapshot web-prod-01-snapshot-baseline -n production -o jsonpath='{.status.readyToUse}'",
+      "sections": [
+        {
+          "title": "VM Snapshot Creation",
+          "notice": "Create a snapshot of the 'web-prod-01' VM for backup purposes.",
+          "subtasks": [
+            "Create a VirtualMachineSnapshot named 'web-prod-01-snapshot-baseline'.",
+            "The snapshot should capture the current state of 'web-prod-01' including all volumes.",
+            "Wait for the snapshot to reach ReadyToUse state.",
+            "Verify the snapshot includes both root disk and data disk."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task10",
+      "title": "Restore VM from snapshot",
+      "solution": "# 1. Make a change to test restoration\n# virtctl console web-prod-01 -n production\n# rm -f /var/www/html/index.html\n# exit\n\n# 2. Stop VM\noc virt stop web-prod-01 -n production\n\n# 3. Create restore\noc create -f - -n production <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineRestore\nmetadata:\n  name: web-prod-01-restore-baseline\nspec:\n  target:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: web-prod-01\n  virtualMachineSnapshotName: web-prod-01-snapshot-baseline\nEOF\n\n# 4. Monitor restore\noc get vmrestore web-prod-01-restore-baseline -n production -w\n\n# 5. Start VM\noc virt start web-prod-01 -n production\n\n# 6. Verify restoration\n# virtctl console web-prod-01 -n production\n# ls -la /var/www/html/index.html",
+      "sections": [
+        {
+          "title": "VM Snapshot Restoration",
+          "notice": "Restore the 'web-prod-01' VM from the previously created snapshot.",
+          "subtasks": [
+            "Stop the 'web-prod-01' VM.",
+            "Create a VirtualMachineRestore resource named 'web-prod-01-restore-baseline'.",
+            "Restore from the 'web-prod-01-snapshot-baseline' snapshot.",
+            "Wait for the restore operation to complete.",
+            "Start the VM and verify that the previous state has been restored."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Configure live migration policy",
+      "solution": "# 1. Configure VM for live migration\noc patch vm web-prod-01 -n production --type=merge -p '{\n  \"spec\": {\n    \"template\": {\n      \"spec\": {\n        \"evictionStrategy\": \"LiveMigrate\"\n      }\n    }\n  }\n}'\n\n# 2. Verify configuration\noc get vm web-prod-01 -n production -o jsonpath='{.spec.template.spec.evictionStrategy}'",
+      "sections": [
+        {
+          "title": "Live Migration Configuration",
+          "notice": "Configure the 'web-prod-01' VM to support live migration for maintenance scenarios.",
+          "subtasks": [
+            "Modify the 'web-prod-01' VM to set evictionStrategy to 'LiveMigrate'.",
+            "Verify the VM configuration allows live migration.",
+            "Ensure the VM uses shared storage (ReadWriteMany) to support migration."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Perform live migration",
+      "solution": "# 1. Check current node\noc get vmi web-prod-01 -n production -o jsonpath='{.status.nodeName}'\n\n# 2. Initiate live migration\noc create -f - -n production <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachineInstanceMigration\nmetadata:\n  name: web-prod-01-migration-$(date +%s)\nspec:\n  vmiName: web-prod-01\nEOF\n\n# Alternative using virtctl\n# oc virt migrate web-prod-01 -n production\n\n# 3. Monitor migration\noc get vmim -n production -w\n\n# 4. Verify new node\noc get vmi web-prod-01 -n production -o jsonpath='{.status.nodeName}'",
+      "sections": [
+        {
+          "title": "Live Migration Execution",
+          "notice": "Perform a live migration of 'web-prod-01' to another node without downtime.",
+          "subtasks": [
+            "Identify the current node hosting the 'web-prod-01' VM.",
+            "Create a VirtualMachineInstanceMigration to migrate the VM.",
+            "Monitor the migration process until completion.",
+            "Verify the VM is now running on a different node.",
+            "Confirm the VM remained accessible during migration (no service interruption)."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task13",
+      "title": "Clone VM for staging environment",
+      "solution": "# 1. Create staging namespace\noc create namespace staging\n\n# 2. Clone the VM\noc create -f - <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: web-staging-01\n  namespace: staging\n  labels:\n    app: webserver\n    env: staging\nspec:\n  dataVolumeTemplates:\n  - metadata:\n      name: web-staging-01-disk\n    spec:\n      source:\n        pvc:\n          name: web-prod-01-disk\n          namespace: production\n      pvc:\n        accessModes:\n        - ReadWriteOnce\n        resources:\n          requests:\n            storage: 30Gi\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: web-staging-01\n    spec:\n      domain:\n        cpu:\n          cores: 1\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 2Gi\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: web-staging-01-disk\nEOF\n\n# 3. Verify clone is running\noc get vm web-staging-01 -n staging\noc get vmi web-staging-01 -n staging",
+      "sections": [
+        {
+          "title": "VM Cloning",
+          "notice": "Create a clone of 'web-prod-01' for staging environment with reduced resources.",
+          "subtasks": [
+            "Create a new namespace named 'staging'.",
+            "Clone the 'web-prod-01' VM to create 'web-staging-01' in the staging namespace.",
+            "Configure the staging VM with 1 CPU core and 2Gi memory (reduced from production).",
+            "Ensure the clone uses a copy of the production VM's disk, not a shared volume.",
+            "Start the cloned VM and verify it boots successfully."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task14",
+      "title": "Configure VM resource limits and QoS",
+      "solution": "# 1. Update VM with resource limits\noc patch vm web-staging-01 -n staging --type=merge -p '{\n  \"spec\": {\n    \"template\": {\n      \"spec\": {\n        \"domain\": {\n          \"resources\": {\n            \"requests\": {\n              \"memory\": \"2Gi\",\n              \"cpu\": \"500m\"\n            },\n            \"limits\": {\n              \"memory\": \"4Gi\",\n              \"cpu\": \"1000m\"\n            }\n          }\n        }\n      }\n    }\n  }\n}'\n\n# 2. Restart VM to apply changes\noc virt restart web-staging-01 -n staging\n\n# 3. Verify resource configuration\noc get vmi web-staging-01 -n staging -o jsonpath='{.spec.domain.resources}'",
+      "sections": [
+        {
+          "title": "Resource Management and QoS",
+          "notice": "Configure proper resource requests and limits for the staging VM.",
+          "subtasks": [
+            "Set resource requests for 'web-staging-01': 500m CPU and 2Gi memory.",
+            "Set resource limits for 'web-staging-01': 1000m CPU and 4Gi memory.",
+            "Restart the VM to apply the changes.",
+            "Verify the QoS class assigned to the VM pod.",
+            "Confirm the VM operates within the defined resource boundaries."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task15",
+      "title": "Troubleshoot a VM that fails to start",
+      "solution": "# 1. Check VM status\noc get vm -n staging\noc describe vm web-staging-01 -n staging\n\n# 2. Check events\noc get events -n staging --sort-by='.lastTimestamp'\n\n# 3. Common issues to check:\n# - PVC not bound\noc get pvc -n staging\n\n# - Insufficient resources on nodes\noc describe nodes | grep -A 5 \"Allocated resources\"\n\n# - Image pull errors\noc get pods -n staging\noc logs <virt-launcher-pod> -n staging\n\n# 4. Check VMI if it exists\noc get vmi -n staging\noc describe vmi web-staging-01 -n staging\n\n# 5. Fix common issues:\n# If PVC pending:\noc get pvc web-staging-01-disk -n staging -o yaml\n# Check storageClass exists and is properly configured\n\n# If resource issues:\n# Reduce VM resource requests or scale cluster\n\n# If image issues:\n# Verify DataVolume source is accessible\noc get dv -n staging\noc describe dv web-staging-01-disk -n staging\n\n# 6. Verify virt-launcher logs\noc logs -l kubevirt.io/domain=web-staging-01 -n staging\n\n# 7. Check CNV operator status\noc get pods -n openshift-cnv\noc get hco -n openshift-cnv",
+      "sections": [
+        {
+          "title": "VM Troubleshooting",
+          "notice": "The 'web-staging-01' VM in the staging namespace is not starting. Identify and resolve the issue.",
+          "subtasks": [
+            "Examine the VM status and recent events in the staging namespace.",
+            "Check if the PVC is bound and the underlying storage is available.",
+            "Verify node resources are sufficient to schedule the VM.",
+            "Review virt-launcher pod logs for error messages.",
+            "Identify the root cause (could be: storage issues, resource constraints, image problems, or configuration errors).",
+            "Implement the fix and verify the VM starts successfully."
+          ]
+        }
+      ]
+    }
+  ]
+}
