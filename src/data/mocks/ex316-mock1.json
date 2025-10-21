@@ -235,17 +235,19 @@
     },
     {
       "id": "task14",
-      "title": "Configure a VM with a Custom MAC Address",
-      "solution": "# 1. Stop the VM if it is running\noc virt stop web-server-staging -n web-app-ns\n\n# 2. Patch the VM with a custom MAC address\noc patch vm web-server-staging -n web-app-ns --type merge -p '{\"spec\":{\"template\":{\"spec\":{\"domain\":{\"devices\":{\"interfaces\":[{\"name\":\"default\",\"macAddress\":\"02:00:00:00:00:01\"}]}}}}}}'\n\n# 3. Start the VM\noc virt start web-server-staging -n web-app-ns\n\n# 4. Verify the MAC address inside the VM\n# oc console web-server-staging -n web-app-ns\n# ip a\n",
+      "title": "Integrate a Legacy Licensed Application VM",
+      "solution": "# 1. Create VM with custom MAC and cloud-init for static IP\noc create -f - -n web-app-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: legacy-app-vm\nspec:\n  template:\n    spec:\n      domain:\n        devices:\n          interfaces:\n          - name: default\n            macAddress: '02:00:00:00:00:01'\n            masquerade: {}\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          networkData: |\n            version: 2\n            ethernets:\n              eth0:\n                dhcp4: no\n                addresses: [10.1.2.100/24]\n                gateway4: 10.1.2.1\n                nameservers:\n                  addresses: [8.8.8.8]\nEOF\n\n# 2. Create NetworkPolicy\noc create -f - -n web-app-ns <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-legacy-monitoring\nspec:\n  podSelector:\n    matchLabels:\n      kubevirt.io/domain: legacy-app-vm\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - ipBlock:\n        cidr: 10.1.2.200/32\nEOF\n\n# 3. Start the VM\noc virt start legacy-app-vm -n web-app-ns\n\n# 4. Verification\n# oc get vmi legacy-app-vm -n web-app-ns -o yaml | grep -A 2 macAddress\n# oc console legacy-app-vm -n web-app-ns\n# ip a\n# ping -c 1 10.1.2.200 # This should fail if the monitoring system is not up\n",
       "sections": [
         {
-          "title": "Custom MAC Address Configuration",
-          "notice": "Assign a specific MAC address to the 'web-server-staging' VM.",
+          "title": "Legacy Application Integration",
+          "notice": "A legacy application server requires a specific MAC address for its license to be valid. It also needs a static IP address to be reachable from a monitoring system. You need to deploy this VM and ensure it is correctly configured and secured.",
           "subtasks": [
-            "Stop the 'web-server-staging' VM.",
-            "Modify the VM definition to set a custom MAC address of '02:00:00:00:00:01' on its default interface.",
-            "Start the VM.",
-            "Log into the VM and verify that the new MAC address has been applied."
+            "Create a new VM named 'legacy-app-vm' in the 'web-app-ns' namespace.",
+            "Assign the specific MAC address '02:00:00:00:00:01' to the VM's default network interface.",
+            "Configure the VM to have a static IP address of '10.1.2.100' on its default interface using cloud-init.",
+            "Create a NetworkPolicy named 'allow-legacy-monitoring' that only allows ingress traffic from the monitoring system's IP address '10.1.2.200' to the 'legacy-app-vm'.",
+            "Verify that the VM has the correct MAC address and IP address.",
+            "Verify that the NetworkPolicy is correctly applied by attempting to connect from a different IP address and observing the failure."
           ]
         }
       ]
