@@ -74,6 +74,7 @@
           "title": "OADP Configuration and VM Backup",
           "notice": "Configure OADP and backup a critical VM with its data volumes. Work in the oadp-backup-ns namespace",
           "subtasks": [
+            "For the backup to succeed, OADP needs a configured ObjectBucketClaim. Create one in the openshift-adp namespace.",
             "Create a new namespace named 'oadp-backup-ns'",
             "Ensure DataProtectionApplication is configured in openshift-adp namespace with kubevirt plugin",
             "Create a VirtualMachine named 'critical-vm' with a 10Gi DataVolume named 'critical-data'",

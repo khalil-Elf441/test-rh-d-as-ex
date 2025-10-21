@@ -119,6 +119,7 @@
           "title": "Disaster Recovery with OADP",
           "notice": "Implement comprehensive backup and restore strategy for virtualization workloads using OADP. Target namespace is **'dr-backup'**.",
           "subtasks": [
+            "Prior to executing the backup procedure, ensure that an ObjectBucketClaim has been successfully provisioned within the openshift-adp namespace to serve as the backup target.",
             "Verify OADP operator is installed and DataProtectionApplication is configured with AWS S3 backend.",
             "Configure backup to include VirtualMachines, DataVolumes, PVCs, and related resources.",
             "Stop a target VM gracefully (e.g., 'ha-database-vm' from the 'ha-postgres' task, assuming it's redeployed/adapted) before backup for data consistency.",

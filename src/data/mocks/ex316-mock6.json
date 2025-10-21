@@ -100,6 +100,7 @@
           "title": "OADP Storage Tier Migration",
           "notice": "Move the 'hpc-vm' from a fast StorageClass to a slower, cheaper one for archival.",
           "subtasks": [
+            "OADP readiness checklist: Item 1 - ObjectBucketClaim for backups created and available in openshift-adp.",
             "Backup the 'hpc-vm' using OADP.",
             "Delete the original VM and its PVCs.",
             "Restore the VM from backup, using 'storageClassMapping' to change the destination StorageClass.",

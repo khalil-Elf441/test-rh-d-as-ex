@@ -185,6 +185,7 @@
           "title": "OADP Backup and Restore",
           "notice": "Backup the entire 'infra-services' namespace and restore it.",
           "subtasks": [
+            "Create and verify the availability of an ObjectBucketClaim in the openshift-adp namespace for OADP backup storage.",
             "Create a backup of the 'infra-services' namespace using OADP.",
             "Delete the namespace.",
             "Restore the namespace from the backup.",

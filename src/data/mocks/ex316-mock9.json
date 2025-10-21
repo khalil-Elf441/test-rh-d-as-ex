@@ -100,6 +100,7 @@
           "title": "OADP Backup Strategy Implementation",
           "notice": "Configure comprehensive backup strategies using OADP with schedules, hooks, and selective resource inclusion.",
           "subtasks": [
+            "Your initial task is to set up the backup destination. Create an ObjectBucketClaim in the openshift-adp project for this purpose.",
             "Create a Schedule resource named 'daily-vm-backup' in 'openshift-adp' namespace that runs daily at 2 AM.",
             "Configure the schedule to backup 'team-alpha' and 'team-beta' namespaces, excluding events.",
             "Use label selector to only backup resources with label 'backup=true'.",

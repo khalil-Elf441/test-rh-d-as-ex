@@ -235,6 +235,7 @@
           "title": "Multi-Namespace Backup",
           "notice": "Create a single backup that includes the 'frontend-prod', 'api-prod', and 'db-prod' namespaces.",
           "subtasks": [
+            "The OADP configuration requires an ObjectBucketClaim for storing backups. Create this resource in the openshift-adp project.",
             "Create a 'Backup' resource that includes all three namespaces.",
             "Verify the backup completes successfully.",
             "Inspect the backup logs for any warnings or errors.",

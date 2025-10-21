@@ -116,6 +116,7 @@
           "title": "OADP Backup Configuration for VM",
           "notice": "Create a comprehensive backup of the frontend VM using OADP. Work in 'openshift-adp' namespace. Ensure backup excludes VM memory state.",
           "subtasks": [
+            "Before initiating any backup jobs, you must configure the storage backend for OADP. This involves creating an ObjectBucketClaim in the openshift-adp namespace and ensuring it is in a ready state.",
             "Verify OADP operator is installed and DataProtectionApplication CR exists",
             "Create a Backup resource named 'frontend-vm-backup'",
             "Include the 'app-frontend-ns' namespace in the backup",

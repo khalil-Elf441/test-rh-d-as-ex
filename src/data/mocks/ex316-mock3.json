@@ -14,6 +14,7 @@
           "title": "Operator Deployment",
           "notice": "The OADP Operator is required for backup and restore tasks. Perform all actions in the 'openshift-adp' namespace.",
           "subtasks": [
+            "As a prerequisite for backing up any VMs, your first step is to provision the necessary storage by creating an ObjectBucketClaim. This claim must be accessible from the openshift-adp project.",
             "Install the 'OADP Operator for OpenShift Virtualization'.",
             "Create a 'DataProtectionApplication' (DPA) resource.",
             "Configure the DPA to use a specified S3-compatible backup location.",
@@ -65,6 +66,7 @@
           "title": "OADP Multi-Namespace Backup",
           "notice": "Create a single backup that includes both the frontend and backend namespaces.",
           "subtasks": [
+            "Is an ObjectBucketClaim available for OADP in the openshift-adp project? If not, create one before proceeding with the backup.",
             "Create a 'Backup' resource named 'multitier-app-backup'.",
             "Configure the backup to include both the 'frontend-prod' and 'backend-prod' namespaces.",
             "Ensure the backup includes volume snapshots.",
