@@ -319,17 +319,17 @@
     },
     {
       "id": "task16",
-      "title": "Create a VM from a qcow2 URL",
-      "solution": "# 1. Create DataVolume\noc create -f - -n default <<EOF\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: fedora-dv\nspec:\n  source:\n    http:\n      url: https://download.fedoraproject.org/pub/fedora/linux/releases/36/Cloud/x86_64/images/Fedora-Cloud-Base-36-1.5.x86_64.qcow2\n  pvc:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 10Gi\nEOF\n\n# 2. Create VM\noc create -f - -n default <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: vm-from-qcow2\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: fedora-dv\nEOF",
+      "title": "Create a CentOS 9 Stream VM from a qcow2 URL",
+      "solution": "# 1. Create DataVolume\noc create -f - -n cloudinit-vm-ns <<EOF\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: centos9-dv\nspec:\n  source:\n    http:\n      url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-20220126.0.x86_64.qcow2\n  pvc:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 20Gi\nEOF\n\n# 2. Create VM\noc create -f - -n cloudinit-vm-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: vm-from-centos9-qcow2\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n        resources:\n          requests:\n            memory: 4Gi\n            cpu: 2\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: centos9-dv\nEOF",
       "sections": [
         {
-          "title": "Create VM from qcow2 URL",
-          "notice": "Create a new VM in the default namespace from a qcow2 URL.",
+          "title": "Create CentOS 9 Stream VM from qcow2 URL",
+          "notice": "Create a new CentOS 9 Stream VM in the cloudinit-vm-ns namespace from a qcow2 URL.",
           "subtasks": [
-            "Create a DataVolume named 'fedora-dv' that imports the Fedora 36 cloud image from 'https://download.fedoraproject.org/pub/fedora/linux/releases/36/Cloud/x86_64/images/Fedora-Cloud-Base-36-1.5.x86_64.qcow2'.",
-            "Create a VM named 'vm-from-qcow2' that uses the DataVolume.",
-            "Ensure the VM is running.",
-            "Verify that you can access the VM's console."
+            "Create a DataVolume named 'centos9-dv' in the 'cloudinit-vm-ns' namespace that imports the CentOS 9 Stream cloud image from 'https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-20220126.0.x86_64.qcow2'.",
+            "Create a VM named 'vm-from-centos9-qcow2' in the 'cloudinit-vm-ns' namespace that uses the DataVolume.",
+            "Configure the VM with 2 CPUs and 4Gi of memory.",
+            "Ensure the VM is running and you can access its console."
           ]
         }
       ]

@@ -263,17 +263,18 @@
     },
     {
       "id": "task16",
-      "title": "Create a VM from a qcow2 URL",
-      "solution": "# 1. Create DataVolume\noc create -f - -n default <<EOF\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: fedora-dv\nspec:\n  source:\n    http:\n      url: https://download.fedoraproject.org/pub/fedora/linux/releases/36/Cloud/x86_64/images/Fedora-Cloud-Base-36-1.5.x86_64.qcow2\n  pvc:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 10Gi\nEOF\n\n# 2. Create VM\noc create -f - -n default <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: vm-from-qcow2\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: fedora-dv\nEOF",
+      "title": "Create a RHEL 8 VM from a qcow2 URL with cloud-init",
+      "solution": "# 1. Create DataVolume\noc create -f - -n corp-templates <<EOF\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: rhel8-dv\nspec:\n  source:\n    http:\n      url: https://s3.amazonaws.com/rhel-images/rhel-8.5-x86_64-kvm.qcow2\n  pvc:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 20Gi\nEOF\n\n# 2. Create VM\noc create -f - -n corp-templates <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: vm-from-rhel8-qcow2\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n        resources:\n          requests:\n            memory: 4Gi\n            cpu: 2\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: rhel8-dv\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            packages:\n              - nginx\nEOF",
       "sections": [
         {
-          "title": "Create VM from qcow2 URL",
-          "notice": "Create a new VM in the default namespace from a qcow2 URL.",
+          "title": "Create RHEL 8 VM from qcow2 URL with cloud-init",
+          "notice": "Create a new RHEL 8 VM in the corp-templates namespace from a qcow2 URL and use cloud-init to install a package.",
           "subtasks": [
-            "Create a DataVolume named 'fedora-dv' that imports the Fedora 36 cloud image from 'https://download.fedoraproject.org/pub/fedora/linux/releases/36/Cloud/x86_64/images/Fedora-Cloud-Base-36-1.5.x86_64.qcow2'.",
-            "Create a VM named 'vm-from-qcow2' that uses the DataVolume.",
-            "Ensure the VM is running.",
-            "Verify that you can access the VM's console."
+            "Create a DataVolume named 'rhel8-dv' in the 'corp-templates' namespace that imports the RHEL 8.5 cloud image from 'https://s3.amazonaws.com/rhel-images/rhel-8.5-x86_64-kvm.qcow2'.",
+            "Create a VM named 'vm-from-rhel8-qcow2' in the 'corp-templates' namespace that uses the DataVolume.",
+            "Configure the VM with 2 CPUs and 4Gi of memory.",
+            "Use cloud-init to install the 'nginx' package.",
+            "Ensure the VM is running and you can access its console."
           ]
         }
       ]
