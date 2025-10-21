@@ -1,5 +1,5 @@
 {
-  "examId": "ex316-9",
+  "examId": "ex316-10",
   "title": "OpenShift Virtualization Specialist (EX316) — Mock 10: Advanced Mock Exam",
   "description": "A comprehensive 15-task advanced exam covering RBAC, cloud-init, disk operations, OADP backups, networking, and all EX316 objectives for OpenShift 4.16",
   "timeLimit": "4h",
