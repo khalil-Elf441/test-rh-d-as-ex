@@ -1,0 +1,327 @@
+{
+  "examId": "ex316-11",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 11: Comprehensive Assessment",
+  "description": "An advanced 15-task exam covering comprehensive scenarios including RBAC, cloud-init package installation, disk operations, OADP backups, service configuration, and complex networking for OpenShift 4.16.",
+  "timeLimit": "4h",
+  "prerequisites": "# Prerequisites script for EX316 Advanced Mock Exam\n# Run this script before starting the exam\n\necho \"Setting up exam environment for OpenShift 4.16...\"\n\n# Verify OpenShift Virtualization operator is installed\noc get csv -n openshift-cnv | grep kubevirt-hyperconverged\n\n# Verify OADP operator is installed\noc get csv -n openshift-adp | grep oadp-operator\n\n# Verify default storage class exists\noc get sc | grep '(default)'\n\n# Verify NMState operator is installed for network configuration\noc get csv -n openshift-nmstate | grep kubernetes-nmstate-operator\n\necho \"Environment setup complete. Custom repository for package installation:\"\necho \"Repository URL: http://repo.ocp4.example.com/rhel9/\"\necho \"Repository Name: custom-rhel9-repo\"\necho \"GPG Check: Disabled for exam purposes\"\necho \"\"\necho \"Ready to begin the exam. Good luck!\"\n",
+  "tasks": [
+    {
+      "id": "task01",
+      "title": "Deploy application server with custom repository and RBAC",
+      "solution": "# Solution for Task 01\n# 1. Create namespace\noc create namespace app-backend-ns\n\n# 2. Create ServiceAccount\noc create sa app-operator -n app-backend-ns\n\n# 3. Create Role with VM permissions\noc create role vm-manager --verb=get,list,watch,create,delete,patch,update --resource=virtualmachines,virtualmachineinstances -n app-backend-ns\n\n# 4. Create RoleBinding\noc create rolebinding app-operator-binding --role=vm-manager --serviceaccount=app-backend-ns:app-operator -n app-backend-ns\n\n# 5. Create VM with cloud-init for package installation\ncat <<EOF | oc create -n app-backend-ns -f -\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: app-backend\n  labels:\n    app: backend\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: app-backend\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: cloudinitdisk\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 2Gi\n            cpu: \"1\"\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: registry.redhat.io/rhel9/rhel-guest-image:latest\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            yum_repos:\n              custom-rhel9-repo:\n                name: Custom RHEL9 Repository\n                baseurl: http://repo.ocp4.example.com/rhel9/\n                enabled: true\n                gpgcheck: false\n            packages:\n              - httpd\n              - mod_ssl\n              - php\n            runcmd:\n              - systemctl enable httpd\n              - systemctl start httpd\n              - firewall-cmd --permanent --add-service=http\n              - firewall-cmd --permanent --add-service=https\n              - firewall-cmd --reload\nEOF\n\n# 6. Wait for VM to be ready\noc wait --for=condition=Ready vmi/app-backend -n app-backend-ns --timeout=600s\n\n# 7. Create read-only user and bind\noc create user backend-viewer\noc create role vm-viewer --verb=get,list,watch --resource=virtualmachines,virtualmachineinstances -n app-backend-ns\noc create rolebinding backend-viewer-binding --role=vm-viewer --user=backend-viewer -n app-backend-ns",
+      "sections": [
+        {
+          "title": "Application Server Deployment with RBAC",
+          "notice": "Deploy an application backend server in a dedicated namespace with proper RBAC configuration. All package installations must use the custom repository provided: http://repo.ocp4.example.com/rhel9/. To verify the httpd service, you can test with: curl http://<vm-ip>",
+          "subtasks": [
+            "Create a new namespace named 'app-backend-ns'",
+            "Create a ServiceAccount named 'app-operator' in this namespace",
+            "Create a Role named 'vm-manager' that allows full CRUD operations on VirtualMachines and VirtualMachineInstances",
+            "Bind the 'vm-manager' role to the 'app-operator' ServiceAccount",
+            "Deploy a VM named 'app-backend' using RHEL9 guest image with cloud-init configuration",
+            "Configure cloud-init to add the custom repository (name: custom-rhel9-repo, baseurl: http://repo.ocp4.example.com/rhel9/, gpgcheck: false)",
+            "Use cloud-init to install packages: httpd, mod_ssl, and php from the custom repository",
+            "Configure cloud-init to enable and start the httpd service",
+            "Configure firewall rules to allow HTTP and HTTPS traffic",
+            "Create a user named 'backend-viewer' with read-only access (get, list, watch) to VMs in this namespace"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task02",
+      "title": "Configure persistent storage and volume management",
+      "solution": "# Solution for Task 02\n# 1. Create 50Gi filesystem PVC\ncat <<EOF | oc create -n app-backend-ns -f -\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: app-data-volume\nspec:\n  accessModes:\n    - ReadWriteOnce\n  volumeMode: Filesystem\n  resources:\n    requests:\n      storage: 50Gi\nEOF\n\n# 2. Stop VM to attach disk\nvirtctl stop app-backend -n app-backend-ns\noc wait --for=condition=Ready=false vmi/app-backend -n app-backend-ns --timeout=120s\n\n# 3. Add disk to VM spec\noc patch vm app-backend -n app-backend-ns --type=json -p='[\n  {\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/disks/-\", \"value\": {\"name\": \"app-data\", \"disk\": {\"bus\": \"virtio\"}}},\n  {\"op\": \"add\", \"path\": \"/spec/template/spec/volumes/-\", \"value\": {\"name\": \"app-data\", \"persistentVolumeClaim\": {\"claimName\": \"app-data-volume\"}}}\n]'\n\n# 4. Start VM\nvirtctl start app-backend -n app-backend-ns\noc wait --for=condition=Ready vmi/app-backend -n app-backend-ns --timeout=300s\n\n# 5. Inside VM: Format and mount the disk\n# virtctl console app-backend -n app-backend-ns\n# sudo -i\n# lsblk  # Identify the new disk (e.g., vdb)\n# mkfs.xfs /dev/vdb\n# mkdir -p /var/www/app-data\n# mount /dev/vdb /var/www/app-data\n# echo \"/dev/vdb /var/www/app-data xfs defaults 0 0\" >> /etc/fstab\n# chown -R apache:apache /var/www/app-data",
+      "sections": [
+        {
+          "title": "Storage Configuration and Disk Management",
+          "notice": "Attach persistent storage to the application backend VM and configure it for use. Work in the 'app-backend-ns' namespace.",
+          "subtasks": [
+            "Create a PersistentVolumeClaim named 'app-data-volume' with 50Gi storage and volumeMode 'Filesystem'",
+            "Stop the 'app-backend' VM gracefully",
+            "Attach the 'app-data-volume' PVC as a new disk to the VM",
+            "Start the VM and verify it boots successfully",
+            "Inside the guest OS, format the new disk with XFS filesystem",
+            "Create mount point '/var/www/app-data' and mount the new disk",
+            "Configure the mount to persist across reboots by adding entry to /etc/fstab",
+            "Set ownership of the mount point to apache:apache"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task03",
+      "title": "Configure ClusterIP service and Network Policy",
+      "solution": "# Solution for Task 03\n# 1. Create ClusterIP Service\ncat <<EOF | oc create -n app-backend-ns -f -\napiVersion: v1\nkind: Service\nmetadata:\n  name: backend-service\nspec:\n  selector:\n    kubevirt.io/domain: app-backend\n  ports:\n  - name: http\n    port: 80\n    targetPort: 80\n    protocol: TCP\n  - name: https\n    port: 443\n    targetPort: 443\n    protocol: TCP\n  type: ClusterIP\nEOF\n\n# 2. Create NetworkPolicy to allow only from frontend namespace\ncat <<EOF | oc create -n app-backend-ns -f -\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-from-frontend\nspec:\n  podSelector:\n    matchLabels:\n      kubevirt.io/domain: app-backend\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: app-frontend-ns\n    ports:\n    - protocol: TCP\n      port: 80\n    - protocol: TCP\n      port: 443\nEOF",
+      "sections": [
+        {
+          "title": "Service and Network Policy Configuration",
+          "notice": "Create a ClusterIP service for the backend VM and restrict network access using NetworkPolicy. Work in the 'app-backend-ns' namespace.",
+          "subtasks": [
+            "Create a ClusterIP service named 'backend-service' that exposes the 'app-backend' VM",
+            "The service should expose port 80 (http) and port 443 (https)",
+            "Create a NetworkPolicy named 'allow-from-frontend' in the backend namespace",
+            "The policy should allow ingress traffic only from pods in the 'app-frontend-ns' namespace",
+            "Allow traffic on ports 80 and 443 only",
+            "Verify the policy blocks traffic from other namespaces"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task04",
+      "title": "Deploy frontend VM with external network access",
+      "solution": "# Solution for Task 04\n# 1. Create frontend namespace\noc create namespace app-frontend-ns\n\n# 2. Create NetworkAttachmentDefinition for external network\ncat <<EOF | oc create -n app-frontend-ns -f -\napiVersion: k8s.cni.cncf.io/v1\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: external-network\nspec:\n  config: '{\n    \"cniVersion\": \"0.3.1\",\n    \"name\": \"external-network\",\n    \"type\": \"cnv-bridge\",\n    \"bridge\": \"br-ext\",\n    \"vlan\": 200,\n    \"ipam\": {\n      \"type\": \"static\"\n    }\n  }'\nEOF\n\n# 3. Create VM with dual network interfaces\ncat <<EOF | oc create -n app-frontend-ns -f -\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: app-frontend\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: app-frontend\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: cloudinitdisk\n          interfaces:\n          - name: default\n            masquerade: {}\n          - name: external\n            bridge: {}\n        resources:\n          requests:\n            memory: 2Gi\n            cpu: \"1\"\n      networks:\n      - name: default\n        pod: {}\n      - name: external\n        multus:\n          networkName: external-network\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: registry.redhat.io/rhel9/rhel-guest-image:latest\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            yum_repos:\n              custom-rhel9-repo:\n                name: Custom RHEL9 Repository\n                baseurl: http://repo.ocp4.example.com/rhel9/\n                enabled: true\n                gpgcheck: false\n            packages:\n              - nginx\n            runcmd:\n              - systemctl enable nginx\n              - systemctl start nginx\n              - nmcli con mod \"System eth1\" ipv4.addresses \"192.168.200.10/24\"\n              - nmcli con mod \"System eth1\" ipv4.method manual\n              - nmcli con up \"System eth1\"\nEOF\n\n# 4. Wait for VM\noc wait --for=condition=Ready vmi/app-frontend -n app-frontend-ns --timeout=600s",
+      "sections": [
+        {
+          "title": "Multi-homed VM with Multus CNI",
+          "notice": "Deploy a frontend VM connected to both the pod network and an external network using Multus. Use custom repository http://repo.ocp4.example.com/rhel9/ for package installation. To test nginx, use: curl http://<vm-ip>",
+          "subtasks": [
+            "Create namespace 'app-frontend-ns'",
+            "Create a NetworkAttachmentDefinition named 'external-network' using cnv-bridge type with VLAN 200 on bridge 'br-ext'",
+            "Deploy a VM named 'app-frontend' with RHEL9 guest image",
+            "Configure the VM with two network interfaces: default (masquerade) and external (bridge)",
+            "Use cloud-init to configure custom repository and install nginx package",
+            "Configure cloud-init to enable and start nginx service",
+            "Use cloud-init to assign static IP 192.168.200.10/24 to the external interface (eth1)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task05",
+      "title": "Configure NodePort service and custom route",
+      "solution": "# Solution for Task 05\n# 1. Create NodePort Service\ncat <<EOF | oc create -n app-frontend-ns -f -\napiVersion: v1\nkind: Service\nmetadata:\n  name: frontend-nodeport\nspec:\n  selector:\n    kubevirt.io/domain: app-frontend\n  ports:\n  - name: http\n    port: 80\n    targetPort: 80\n    nodePort: 30080\n    protocol: TCP\n  type: NodePort\nEOF\n\n# 2. Create ClusterIP Service for Route\ncat <<EOF | oc create -n app-frontend-ns -f -\napiVersion: v1\nkind: Service\nmetadata:\n  name: frontend-route-svc\nspec:\n  selector:\n    kubevirt.io/domain: app-frontend\n  ports:\n  - name: http\n    port: 80\n    targetPort: 80\n    protocol: TCP\n  type: ClusterIP\nEOF\n\n# 3. Create Edge Route with custom hostname\ncat <<EOF | oc create -n app-frontend-ns -f -\napiVersion: route.openshift.io/v1\nkind: Route\nmetadata:\n  name: frontend-route\nspec:\n  host: frontend.apps.ocp4.example.com\n  to:\n    kind: Service\n    name: frontend-route-svc\n  port:\n    targetPort: http\n  tls:\n    termination: edge\n    insecureEdgeTerminationPolicy: Redirect\nEOF",
+      "sections": [
+        {
+          "title": "NodePort Service and Route Configuration",
+          "notice": "Expose the frontend VM using both NodePort and Route. Work in 'app-frontend-ns' namespace. To test the route, use the container image 'quay.io/redhattraining/hello-world-nginx:v1.0' which provides a simple test page at the root path '/'.",
+          "subtasks": [
+            "Create a NodePort service named 'frontend-nodeport' exposing port 80 on nodePort 30080",
+            "Create a ClusterIP service named 'frontend-route-svc' for the route",
+            "Create an edge-terminated Route named 'frontend-route' with hostname 'frontend.apps.ocp4.example.com'",
+            "Configure the route to redirect HTTP to HTTPS",
+            "Verify external access through both the NodePort and Route",
+            "Test route access using: curl https://frontend.apps.ocp4.example.com"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task06",
+      "title": "Implement OADP backup for frontend VM",
+      "solution": "# Solution for Task 06\n# 1. Verify OADP is configured with DataProtectionApplication\noc get dpa -n openshift-adp\n\n# 2. Create Backup excluding memory\ncat <<EOF | oc create -n openshift-adp -f -\napiVersion: velero.io/v1\nkind: Backup\nmetadata:\n  name: frontend-vm-backup\nspec:\n  includedNamespaces:\n  - app-frontend-ns\n  includedResources:\n  - virtualmachines\n  - virtualmachineinstances\n  - persistentvolumeclaims\n  - persistentvolumes\n  - services\n  - routes\n  excludedResources:\n  - pods\n  snapshotVolumes: true\n  ttl: 720h0m0s\n  hooks:\n    resources:\n    - name: vm-freeze\n      includedNamespaces:\n      - app-frontend-ns\n      labelSelector:\n        matchLabels:\n          kubevirt.io/domain: app-frontend\n      pre:\n      - exec:\n          command:\n          - /bin/bash\n          - -c\n          - \"virtctl freeze app-frontend -n app-frontend-ns\"\n      post:\n      - exec:\n          command:\n          - /bin/bash\n          - -c\n          - \"virtctl unfreeze app-frontend -n app-frontend-ns\"\nEOF\n\n# 3. Monitor backup\noc get backup frontend-vm-backup -n openshift-adp -w\n\n# 4. Verify backup completion\noc get backup frontend-vm-backup -n openshift-adp -o jsonpath='{.status.phase}'",
+      "sections": [
+        {
+          "title": "OADP Backup Configuration for VM",
+          "notice": "Create a comprehensive backup of the frontend VM using OADP. Work in 'openshift-adp' namespace. Ensure backup excludes VM memory state.",
+          "subtasks": [
+            "Verify OADP operator is installed and DataProtectionApplication CR exists",
+            "Create a Backup resource named 'frontend-vm-backup'",
+            "Include the 'app-frontend-ns' namespace in the backup",
+            "Explicitly include VMs, VMIs, PVCs, PVs, Services, and Routes",
+            "Exclude Pods and memory state from backup",
+            "Enable volume snapshots (snapshotVolumes: true)",
+            "Set TTL to 30 days (720h)",
+            "Monitor the backup until it reaches 'Completed' phase"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task07",
+      "title": "Configure VM snapshots and restore",
+      "solution": "# Solution for Task 07\n# 1. Create snapshot of backend VM\ncat <<EOF | oc create -n app-backend-ns -f -\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineSnapshot\nmetadata:\n  name: backend-snapshot-v1\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: app-backend\nEOF\n\n# 2. Wait for snapshot to complete\noc wait --for=condition=Ready vmSnapshot/backend-snapshot-v1 -n app-backend-ns --timeout=300s\n\n# 3. Verify snapshot\noc get vmsnapshot backend-snapshot-v1 -n app-backend-ns -o jsonpath='{.status.readyToUse}'\n\n# 4. Later, to restore from snapshot:\ncat <<EOF | oc create -n app-backend-ns -f -\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineRestore\nmetadata:\n  name: backend-restore-v1\nspec:\n  target:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: app-backend\n  virtualMachineSnapshotName: backend-snapshot-v1\nEOF\n\n# 5. Monitor restore\noc wait --for=condition=Ready vmRestore/backend-restore-v1 -n app-backend-ns --timeout=300s",
+      "sections": [
+        {
+          "title": "VM Snapshot Creation and Restore",
+          "notice": "Create a snapshot of the backend VM and demonstrate restore capability. Work in 'app-backend-ns' namespace.",
+          "subtasks": [
+            "Create a VirtualMachineSnapshot named 'backend-snapshot-v1' for the 'app-backend' VM",
+            "Wait for the snapshot to reach 'Ready' condition",
+            "Verify the snapshot is ready to use (readyToUse: true)",
+            "Document the snapshot creation timestamp",
+            "Create a VirtualMachineRestore resource named 'backend-restore-v1' to test restore functionality",
+            "Monitor the restore operation until completion",
+            "Verify the VM starts successfully after restore"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task08",
+      "title": "Configure VM health probes and watchdog",
+      "solution": "# Solution for Task 08\n# 1. Stop VM to add probes\nvirtctl stop app-backend -n app-backend-ns\n\n# 2. Patch VM with readiness and liveness probes\ncat <<EOF | oc apply -n app-backend-ns -f -\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: app-backend\nspec:\n  running: true\n  runStrategy: Always\n  template:\n    spec:\n      domain:\n        devices:\n          watchdog:\n            name: watchdog0\n            i6300esb:\n              action: reset\n      readinessProbe:\n        httpGet:\n          port: 80\n          path: /health\n        initialDelaySeconds: 120\n        periodSeconds: 20\n        timeoutSeconds: 10\n        failureThreshold: 3\n      livenessProbe:\n        httpGet:\n          port: 80\n          path: /health\n        initialDelaySeconds: 180\n        periodSeconds: 30\n        timeoutSeconds: 10\n        failureThreshold: 3\nEOF\n\n# 3. Start VM\nvirtctl start app-backend -n app-backend-ns\n\n# 4. Inside VM, install watchdog service\n# virtctl console app-backend -n app-backend-ns\n# sudo -i\n# dnf install -y watchdog\n# systemctl enable --now watchdog\n# echo \"watchdog-device = /dev/watchdog0\" >> /etc/watchdog.conf\n# systemctl restart watchdog",
+      "sections": [
+        {
+          "title": "Health Probes and Watchdog Configuration",
+          "notice": "Configure comprehensive health monitoring for the backend VM. Work in 'app-backend-ns' namespace.",
+          "subtasks": [
+            "Stop the 'app-backend' VM",
+            "Configure runStrategy to 'Always' for automatic restart on failure",
+            "Add a watchdog device (i6300esb) with action 'reset'",
+            "Configure readiness probe with HTTP GET on port 80, path '/health', initialDelay 120s, period 20s, failure threshold 3",
+            "Configure liveness probe with HTTP GET on port 80, path '/health', initialDelay 180s, period 30s, failure threshold 3",
+            "Start the VM",
+            "Inside the guest OS, install and configure the watchdog service",
+            "Verify watchdog is monitoring /dev/watchdog0"
+          ]
+        }
+      ]
+    },
+    {
+  "id": "task09",
+  "title": "Configure VM affinity and anti-affinity",
+  "solution": "# Solution for Task 09\n# 1. Create database namespace\noc create namespace database-cluster-ns\n\n# 2. Label nodes for database workload\noc label node worker-1.ocp4.example.com workload=database\noc label node worker-2.ocp4.example.com workload=database\n\n# 3. Create first database VM with node affinity\ncat <<EOF | oc create -n database-cluster-ns -f -\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: postgres-primary\n  labels:\n    app: postgres\n    role: primary\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: postgres-primary\n        app: postgres\n        role: primary\n    spec:\n      affinity:\n        nodeAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n            nodeSelectorTerms:\n            - matchExpressions:\n              - key: workload\n                operator: In\n                values:\n                - database\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: cloudinitdisk\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 4Gi\n            cpu: \"2\"\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: registry.redhat.io/rhel9/rhel-guest-image:latest\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            yum_repos:\n              custom-rhel9-repo:\n                name: Custom RHEL9 Repository\n                baseurl: http://repo.ocp4.example.com/rhel9/\n                enabled: true\n                gpgcheck: false\n            packages:\n              - postgresql-server\n              - postgresql-contrib\n            runcmd:\n              - postgresql-setup --initdb\n              - systemctl enable postgresql\n              - systemctl start postgresql\nEOF\n\n# 4. Wait for primary VM\noc wait --for=condition=Ready vmi/postgres-primary -n database-cluster-ns --timeout=600s\n\n# 5. Create replica VM with anti-affinity to primary\ncat <<EOF | oc create -n database-cluster-ns -f -\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: postgres-replica\n  labels:\n    app: postgres\n    role: replica\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: postgres-replica\n        app: postgres\n        role: replica\n    spec:\n      affinity:\n        nodeAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n            nodeSelectorTerms:\n            - matchExpressions:\n              - key: workload\n                operator: In\n                values:\n                - database\n        podAntiAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n          - labelSelector:\n              matchExpressions:\n              - key: role\n                operator: In\n                values:\n                - primary\n            topologyKey: kubernetes.io/hostname\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: cloudinitdisk\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 4Gi\n            cpu: \"2\"\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: registry.redhat.io/rhel9/rhel-guest-image:latest\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            yum_repos:\n              custom-rhel9-repo:\n                name: Custom RHEL9 Repository\n                baseurl: http://repo.ocp4.example.com/rhel9/\n                enabled: true\n                gpgcheck: false\n            packages:\n              - postgresql-server\n              - postgresql-contrib\n            runcmd:\n              - postgresql-setup --initdb\n              - systemctl enable postgresql\n              - systemctl start postgresql\nEOF\n\n# 6. Wait for replica VM\noc wait --for=condition=Ready vmi/postgres-replica -n database-cluster-ns --timeout=600s\n\n# 7. Verify VMs are on different nodes\noc get vmi -n database-cluster-ns -o wide",
+  "sections": [
+    {
+      "title": "VM Affinity and Anti-Affinity Configuration",
+      "notice": "Deploy a database cluster with primary and replica VMs using affinity rules. Work in 'database-cluster-ns' namespace. Use custom repository http://repo.ocp4.example.com/rhel9/ for PostgreSQL installation.",
+      "subtasks": [
+        "Create namespace 'database-cluster-ns'",
+        "Label worker nodes 'worker-1.ocp4.example.com' and 'worker-2.ocp4.example.com' with 'workload=database'",
+        "Create VM 'postgres-primary' with node affinity to nodes labeled 'workload=database'",
+        "Configure cloud-init to install postgresql-server and postgresql-contrib from custom repository",
+        "Initialize PostgreSQL database and enable the service",
+        "Create VM 'postgres-replica' with the same node affinity",
+        "Configure pod anti-affinity on 'postgres-replica' to avoid nodes running 'role=primary'",
+        "Verify both VMs are running on different worker nodes"
+      ]
+    }
+  ]
+},
+{
+  "id": "task10",
+  "title": "Configure tolerations and taints for dedicated workload",
+  "solution": "# Solution for Task 10\n# 1. Create namespace\noc create namespace monitoring-ns\n\n# 2. Taint a node for monitoring workload\noc adm taint node worker-3.ocp4.example.com workload=monitoring:NoSchedule\n\n# 3. Create PVC for Prometheus data\ncat <<EOF | oc create -n monitoring-ns -f -\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: prometheus-data\nspec:\n  accessModes:\n    - ReadWriteOnce\n  volumeMode: Filesystem\n  resources:\n    requests:\n      storage: 100Gi\nEOF\n\n# 4. Create monitoring VM with toleration\ncat <<EOF | oc create -n monitoring-ns -f -\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: prometheus-vm\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: prometheus-vm\n        app: monitoring\n    spec:\n      tolerations:\n      - key: workload\n        operator: Equal\n        value: monitoring\n        effect: NoSchedule\n      nodeSelector:\n        kubernetes.io/hostname: worker-3.ocp4.example.com\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: cloudinitdisk\n          - disk:\n              bus: virtio\n            name: data-disk\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 8Gi\n            cpu: \"4\"\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: registry.redhat.io/rhel9/rhel-guest-image:latest\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            yum_repos:\n              custom-rhel9-repo:\n                name: Custom RHEL9 Repository\n                baseurl: http://repo.ocp4.example.com/rhel9/\n                enabled: true\n                gpgcheck: false\n            packages:\n              - prometheus\n              - node_exporter\n            runcmd:\n              - systemctl enable prometheus\n              - systemctl start prometheus\n              - systemctl enable node_exporter\n              - systemctl start node_exporter\n      - name: data-disk\n        persistentVolumeClaim:\n          claimName: prometheus-data\nEOF\n\n# 5. Wait for VM\noc wait --for=condition=Ready vmi/prometheus-vm -n monitoring-ns --timeout=600s\n\n# 6. Verify VM is scheduled on tainted node\noc get vmi prometheus-vm -n monitoring-ns -o wide",
+  "sections": [
+    {
+      "title": "Taints, Tolerations and Node Selectors",
+      "notice": "Deploy a monitoring VM on a dedicated tainted node. Work in 'monitoring-ns' namespace. Use custom repository http://repo.ocp4.example.com/rhel9/ for package installation.",
+      "subtasks": [
+        "Create namespace 'monitoring-ns'",
+        "Taint node 'worker-3.ocp4.example.com' with 'workload=monitoring:NoSchedule'",
+        "Create PVC named 'prometheus-data' with 100Gi storage",
+        "Create VM 'prometheus-vm' with appropriate toleration for the tainted node",
+        "Add nodeSelector to ensure VM runs on 'worker-3.ocp4.example.com'",
+        "Configure cloud-init to install prometheus and node_exporter from custom repository",
+        "Enable and start both prometheus and node_exporter services",
+        "Attach the prometheus-data PVC to the VM",
+        "Verify the VM is scheduled on the tainted node"
+      ]
+    }
+  ]
+},
+{
+  "id": "task11",
+  "title": "Perform live migration and configure eviction strategy",
+  "solution": "# Solution for Task 11\n# 1. Update postgres-primary with eviction strategy\noc patch vm postgres-primary -n database-cluster-ns --type merge -p '{\"spec\":{\"template\":{\"spec\":{\"evictionStrategy\":\"LiveMigrate\"}}}}'\n\n# 2. Initiate live migration\nvirtctl migrate postgres-primary -n database-cluster-ns\n\n# 3. Monitor migration\noc get vmim -n database-cluster-ns -w\n\n# 4. Check migration status\noc get vmim -n database-cluster-ns -o yaml\n\n# 5. Verify VM is running on new node\noc get vmi postgres-primary -n database-cluster-ns -o jsonpath='{.status.nodeName}'\n\n# 6. Verify database service is still accessible\noc get svc -n database-cluster-ns\n\n# 7. Cancel migration if needed (for demonstration)\n# virtctl migrate-cancel postgres-primary -n database-cluster-ns",
+  "sections": [
+    {
+      "title": "Live Migration and Eviction Strategy",
+      "notice": "Configure and perform live migration of the primary database VM. Work in 'database-cluster-ns' namespace.",
+      "subtasks": [
+        "Update 'postgres-primary' VM to set evictionStrategy to 'LiveMigrate'",
+        "Initiate a live migration for 'postgres-primary'",
+        "Monitor the VirtualMachineInstanceMigration (VMIM) resource",
+        "Verify the migration completes successfully",
+        "Confirm the VM is running on a different node after migration",
+        "Verify the VM remains accessible during and after migration",
+        "Document the original and destination node names"
+      ]
+    }
+  ]
+},
+{
+  "id": "task12",
+  "title": "Prepare node for maintenance and drain workloads",
+  "solution": "# Solution for Task 12\n# 1. Identify node with VMs\nNODE_NAME=$(oc get vmi -n app-frontend-ns -o jsonpath='{.items[0].status.nodeName}')\necho \"Selected node for maintenance: $NODE_NAME\"\n\n# 2. Cordon the node\noc adm cordon $NODE_NAME\n\n# 3. Check node status\noc get node $NODE_NAME\n\n# 4. Drain the node (with VM migration)\noc adm drain $NODE_NAME \\\n  --ignore-daemonsets \\\n  --delete-emptydir-data \\\n  --force \\\n  --timeout=600s\n\n# 5. Verify VMs have migrated\noc get vmi --all-namespaces -o wide | grep -v $NODE_NAME\n\n# 6. Verify node is empty of VMs\noc get pods --all-namespaces -o wide --field-selector spec.nodeName=$NODE_NAME\n\n# 7. After maintenance, uncordon the node\n# oc adm uncordon $NODE_NAME",
+  "sections": [
+    {
+      "title": "Node Maintenance and VM Evacuation",
+      "notice": "Prepare a worker node for maintenance by safely evacuating all VMs.",
+      "subtasks": [
+        "Identify a worker node that is currently running at least one VM",
+        "Cordon the node to prevent new pods from being scheduled",
+        "Verify the node status shows as 'SchedulingDisabled'",
+        "Drain the node using 'oc adm drain' with appropriate flags",
+        "Ensure all VMs are live-migrated to other nodes",
+        "Verify no VM pods remain on the drained node (except DaemonSets)",
+        "Document the drain operation completion time",
+        "Note the command to uncordon the node after maintenance"
+      ]
+    }
+  ]
+},
+{
+  "id": "task13",
+  "title": "Clone VM and modify template",
+  "solution": "# Solution for Task 13\\n# 1. Stop source VM\\nvirtctl stop app-frontend -n app-frontend-ns\\noc wait --for=condition=Ready=false vmi/app-frontend -n app-frontend-ns --timeout=120s\\n\\n# 2. Create VM clone\\ncat <<EOF | oc create -n app-frontend-ns -f -\\napiVersion: clone.kubevirt.io/v1alpha1\\nkind: VirtualMachineClone\\nmetadata:\\n  name: frontend-clone-operation\\nspec:\\n  source:\\n    apiGroup: kubevirt.io\\n    kind: VirtualMachine\\n    name: app-frontend\\n  target:\\n    apiGroup: kubevirt.io\\n    kind: VirtualMachine\\n    name: app-frontend-clone\\nEOF\\n\\n# 3. Wait for clone to complete\\noc wait --for=condition=Succeeded vmclone/frontend-clone-operation -n app-frontend-ns --timeout=600s\\n\\n# 4. Start both VMs\\nvirtctl start app-frontend -n app-frontend-ns\\nvirtctl start app-frontend-clone -n app-frontend-ns\\n\\n# 5. Wait for VMs to be ready\\noc wait --for=condition=Ready vmi/app-frontend -n app-frontend-ns --timeout=300s\\noc wait --for=condition=Ready vmi/app-frontend-clone -n app-frontend-ns --timeout=300s\\n\\n# 6. Create custom template from cloned VM\\ncat <<EOF | oc create -n app-frontend-ns -f -\\napiVersion: template.openshift.io/v1\\nkind: Template\\nmetadata:\\n  name: nginx-frontend-template\\n  annotations:\\n    description: \"Custom NGINX frontend template with external network\"\\n    tags: \"nginx,frontend,rhel9\"\\nparameters:\\n- name: VM_NAME\\n  description: \"Name of the virtual machine\"\\n  required: true\\n- name: MEMORY\\n  description: \"Amount of memory\"\\n  value: \"2Gi\"\\n- name: CPU_CORES\\n  description: \"Number of CPU cores\"\\n  value: \"1\"\\nobjects:\\n- apiVersion: kubevirt.io/v1\\n  kind: VirtualMachine\\n  metadata:\\n    name: ${VM_NAME}\\n  spec:\\n    running: false\\n    template:\\n      metadata:\\n        labels:\\n          kubevirt.io/domain: ${VM_NAME}\\n      spec:\\n        domain:\\n          devices:\\n            disks:\\n            - disk:\\n                bus: virtio\\n              name: containerdisk\\n            - disk:\\n                bus: virtio\\n              name: cloudinitdisk\\n            interfaces:\\n            - name: default\\n              masquerade: {}\\n          resources:\\n            requests:\\n              memory: ${MEMORY}\\n              cpu: ${CPU_CORES}\\n        networks:\\n        - name: default\\n          pod: {}\\n        volumes:\\n        - name: containerdisk\\n          containerDisk:\\n            image: registry.redhat.io/rhel9/rhel-guest-image:latest\\n        - name: cloudinitdisk\\n          cloudInitNoCloud:\\n            userData: |\\n              #cloud-config\\n              yum_repos:\\n                custom-rhel9-repo:\\n                  name: Custom RHEL9 Repository\\n                  baseurl: http://repo.ocp4.example.com/rhel9/\\n                  enabled: true\\n                  gpgcheck: false\\n              packages:\\n                - nginx\\n              runcmd:\\n                - systemctl enable nginx\\n                - systemctl start nginx\\nEOF\\n\\n# 7. Test template by creating new VM\\noc process nginx-frontend-template -p VM_NAME=test-frontend -n app-frontend-ns | oc create -f -\\n\\n# 8. Start the test VM\\nvirtctl start test-frontend -n app-frontend-ns",
+  "sections": [
+    {
+      "title": "VM Cloning and Custom Template Creation",
+      "notice": "Clone the frontend VM and create a reusable template. Work in 'app-frontend-ns' namespace.",
+      "subtasks": [
+        "Stop the 'app-frontend' VM before cloning",
+        "Create a VirtualMachineClone resource to clone 'app-frontend' to 'app-frontend-clone'",
+        "Wait for clone operation to complete successfully",
+        "Start both the original and cloned VMs",
+        "Create a Template named 'nginx-frontend-template' based on the VM configuration",
+        "Add parameters for VM_NAME, MEMORY, and CPU_CORES to the template",
+        "Include cloud-init configuration with custom repository in the template",
+        "Test the template by creating a new VM named 'test-frontend'",
+        "Verify the new VM from template starts correctly"
+      ]
+    }
+  ]
+},
+{
+  "id": "task14",
+  "title": "Restore VM from OADP backup",
+  "solution": "# Solution for Task 14\n# 1. Delete the frontend namespace to simulate disaster\noc delete namespace app-frontend-ns --wait=true\n\n# 2. Verify namespace is deleted\noc get namespace app-frontend-ns 2>&1 | grep NotFound\n\n# 3. Create restore from backup\ncat <<EOF | oc create -n openshift-adp -f -\napiVersion: velero.io/v1\nkind: Restore\nmetadata:\n  name: frontend-vm-restore\nspec:\n  backupName: frontend-vm-backup\n  includedNamespaces:\n  - app-frontend-ns\n  restorePVs: true\n  preserveNodePorts: true\nEOF\n\n# 4. Monitor restore operation\noc get restore frontend-vm-restore -n openshift-adp -w\n\n# 5. Verify restore completion\noc get restore frontend-vm-restore -n openshift-adp -o jsonpath='{.status.phase}'\n\n# 6. Verify namespace is restored\noc get namespace app-frontend-ns\n\n# 7. Verify VM is restored\noc get vm -n app-frontend-ns\n\n# 8. Start the restored VM\nvirtctl start app-frontend -n app-frontend-ns\n\n# 9. Wait for VM to be ready\noc wait --for=condition=Ready vmi/app-frontend -n app-frontend-ns --timeout=300s\n\n# 10. Verify services and routes are restored\noc get svc,route -n app-frontend-ns\n\n# 11. Test connectivity to restored VM\ncurl -k https://frontend.apps.ocp4.example.com",
+  "sections": [
+    {
+      "title": "OADP VM Restore Operation",
+      "notice": "Perform a complete restore of the frontend VM from OADP backup. Work in 'openshift-adp' namespace.",
+      "subtasks": [
+        "Simulate a disaster by deleting the 'app-frontend-ns' namespace",
+        "Verify the namespace and all resources are completely deleted",
+        "Create a Restore resource named 'frontend-vm-restore' from backup 'frontend-vm-backup'",
+        "Enable PV restoration (restorePVs: true)",
+        "Preserve NodePort assignments during restore",
+        "Monitor the restore operation until completion",
+        "Verify the 'app-frontend-ns' namespace is recreated",
+        "Verify VM, services, and routes are restored",
+        "Start the restored VM and verify it boots correctly",
+        "Test external access through the restored route"
+      ]
+    }
+  ]
+},
+{
+  "id": "task15",
+  "title": "Configure VM load balancing and advanced RBAC",
+  "solution": "# Solution for Task 15\n# 1. Create namespace\noc create namespace loadbalanced-app-ns\n\n# 2. Create multiple backend VMs\nfor i in 1 2 3; do\ncat <<EOF | oc create -n loadbalanced-app-ns -f -\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: backend-vm-$i\n  labels:\n    app: backend\n    tier: api\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: backend-vm-$i\n        app: backend\n        tier: api\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: cloudinitdisk\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 2Gi\n            cpu: \"1\"\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: registry.redhat.io/rhel9/rhel-guest-image:latest\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            yum_repos:\n              custom-rhel9-repo:\n                name: Custom RHEL9 Repository\n                baseurl: http://repo.ocp4.example.com/rhel9/\n                enabled: true\n                gpgcheck: false\n            packages:\n              - httpd\n            runcmd:\n              - systemctl enable httpd\n              - systemctl start httpd\n              - echo \"Backend Server $i\" > /var/www/html/index.html\nEOF\ndone\n\n# 3. Wait for all VMs\nfor i in 1 2 3; do\n  oc wait --for=condition=Ready vmi/backend-vm-$i -n loadbalanced-app-ns --timeout=600s\ndone\n\n# 4. Create LoadBalancer Service\ncat <<EOF | oc create -n loadbalanced-app-ns -f -\napiVersion: v1\nkind: Service\nmetadata:\n  name: backend-lb-service\nspec:\n  selector:\n    app: backend\n    tier: api\n  ports:\n  - name: http\n    port: 80\n    targetPort: 80\n    protocol: TCP\n  type: LoadBalancer\n  sessionAffinity: ClientIP\n  sessionAffinityConfig:\n    clientIP:\n      timeoutSeconds: 3600\nEOF\n\n# 5. Create ClusterIP service for internal access\ncat <<EOF | oc create -n loadbalanced-app-ns -f -\napiVersion: v1\nkind: Service\nmetadata:\n  name: backend-internal-service\nspec:\n  selector:\n    app: backend\n    tier: api\n  ports:\n  - name: http\n    port: 80\n    targetPort: 80\n    protocol: TCP\n  type: ClusterIP\nEOF\n\n# 6. Create Route with load balancing\ncat <<EOF | oc create -n loadbalanced-app-ns -f -\napiVersion: route.openshift.io/v1\nkind: Route\nmetadata:\n  name: backend-route\n  annotations:\n    haproxy.router.openshift.io/balance: roundrobin\nspec:\n  host: backend-api.apps.ocp4.example.com\n  to:\n    kind: Service\n    name: backend-internal-service\n  port:\n    targetPort: http\n  tls:\n    termination: edge\n    insecureEdgeTerminationPolicy: Redirect\nEOF\n\n# 7. Create advanced RBAC configuration\n# Create users\noc create user backend-developer\noc create user backend-operator\noc create user backend-auditor\n\n# Create roles\ncat <<EOF | oc create -n loadbalanced-app-ns -f -\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: vm-developer\nrules:\n- apiGroups: [\"kubevirt.io\"]\n  resources: [\"virtualmachines\"]\n  verbs: [\"get\", \"list\", \"watch\", \"create\", \"update\", \"patch\"]\n- apiGroups: [\"kubevirt.io\"]\n  resources: [\"virtualmachineinstances\"]\n  verbs: [\"get\", \"list\", \"watch\"]\n- apiGroups: [\"subresources.kubevirt.io\"]\n  resources: [\"virtualmachines/start\", \"virtualmachines/stop\", \"virtualmachines/restart\"]\n  verbs: [\"update\"]\nEOF\n\ncat <<EOF | oc create -n loadbalanced-app-ns -f -\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: vm-operator\nrules:\n- apiGroups: [\"kubevirt.io\"]\n  resources: [\"virtualmachines\", \"virtualmachineinstances\"]\n  verbs: [\"*\"]\n- apiGroups: [\"subresources.kubevirt.io\"]\n  resources: [\"virtualmachines/*\"]\n  verbs: [\"*\"]\n- apiGroups: [\"snapshot.kubevirt.io\"]\n  resources: [\"virtualmachinesnapshots\", \"virtualmachinerestores\"]\n  verbs: [\"*\"]\n- apiGroups: [\"clone.kubevirt.io\"]\n  resources: [\"virtualmachineclones\"]\n  verbs: [\"*\"]\nEOF\n\ncat <<EOF | oc create -n loadbalanced-app-ns -f -\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: vm-auditor\nrules:\n- apiGroups: [\"kubevirt.io\"]\n  resources: [\"virtualmachines\", \"virtualmachineinstances\"]\n  verbs: [\"get\", \"list\", \"watch\"]\n- apiGroups: [\"\"]\n  resources: [\"pods\", \"pods/log\"]\n  verbs: [\"get\", \"list\"]\nEOF\n\n# Create role bindings\noc create rolebinding backend-developer-binding --role=vm-developer --user=backend-developer -n loadbalanced-app-ns\noc create rolebinding backend-operator-binding --role=vm-operator --user=backend-operator -n loadbalanced-app-ns\noc create rolebinding backend-auditor-binding --role=vm-auditor --user=backend-auditor -n loadbalanced-app-ns\n\n# 8. Verify load balancing\necho \"Testing load balancing across backend VMs:\"\nfor i in {1..10}; do\n  curl -s http://backend-api.apps.ocp4.example.com\n  sleep 1\ndone",
+  "sections": [
+    {
+      "title": "VM Load Balancing and Advanced RBAC",
+      "notice": "Deploy multiple backend VMs with load balancing and configure granular RBAC. Work in 'loadbalanced-app-ns' namespace. Use custom repository http://repo.ocp4.example.com/rhel9/. Test route with: curl https://backend-api.apps.ocp4.example.com (container test image: quay.io/redhattraining/hello-world-nginx:v1.0)",
+      "subtasks": [
+        "Create namespace 'loadbalanced-app-ns'",
+        "Deploy three VMs (backend-vm-1, backend-vm-2, backend-vm-3) with label 'app=backend' and 'tier=api'",
+        "Configure cloud-init to install httpd and create unique index.html for each VM",
+        "Create a LoadBalancer service named 'backend-lb-service' with sessionAffinity set to ClientIP",
+        "Create a ClusterIP service named 'backend-internal-service' for internal routing",
+        "Create a Route named 'backend-route' with hostname 'backend-api.apps.ocp4.example.com' using roundrobin balancing",
+        "Create three users: backend-developer, backend-operator, backend-auditor",
+        "Create Role 'vm-developer' with permissions to create/update VMs and start/stop/restart operations",
+        "Create Role 'vm-operator' with full permissions on VMs, snapshots, and clones",
+        "Create Role 'vm-auditor' with read-only access to VMs and pod logs",
+        "Bind appropriate roles to each user",
+        "Test load balancing by accessing the route multiple times and verify different backend responses"
+      ]
+    }
+  ]
+}
+  ]
+}
