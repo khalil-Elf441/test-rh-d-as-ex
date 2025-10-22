@@ -1,6 +1,6 @@
 {
-  "examId": "ex316-2",
-  "title": "OpenShift Virtualization Specialist (EX316) — Mock 2: Advanced Edition",
+  "examId": "ex316-13",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 13: Advanced Edition",
   "description": "A comprehensive 15-task advanced exam covering RBAC, OADP with ODF backend, disk operations, multi-network configurations, cloud-init with custom repos, service management, and real-world scenarios for OpenShift 4.16.",
   "timeLimit": "4h",
   "prerequisites": "# Prerequisites Setup Script\n# Run this script before starting the exam to prepare the environment.\n\necho \"Setting up prerequisites for EX316 Mock 2...\"\n\n# Ensure OADP operator is installed and configured with ODF backend\necho \"Verifying OADP operator with ODF backend...\"\noc get dpa -n openshift-adp\n\n# Ensure default storage class is available\noc get sc\n\n# Ensure NMState operator is installed for multi-network configurations\noc get deployment -n openshift-nmstate\n\n# Create custom package repository ConfigMap for cloud-init\noc create configmap custom-repo-config -n openshift-cnv \\\n  --from-literal=repo-url=\"http://mirror.example.local/rhel9/BaseOS\" \\\n  --from-literal=repo-name=\"custom-rhel9\" \\\n  --dry-run=client -o yaml | oc apply -f -\n\necho \"Custom repository details:\"\necho \"  Repository URL: http://mirror.example.local/rhel9/BaseOS\"\necho \"  Repository Name: custom-rhel9\"\necho \"  GPG Check: disabled (gpgcheck=0)\"\necho \"\"\necho \"Use these details in cloud-init configurations for package installations.\"\necho \"\"\necho \"Prerequisites setup complete. You may now start the exam.\"\n",
