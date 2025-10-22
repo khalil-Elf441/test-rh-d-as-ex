@@ -141,7 +141,7 @@
             "Create a VirtualMachineSnapshot named 'backend-snapshot-v1' for the 'app-backend' VM",
             "Wait for the snapshot to reach 'Ready' condition",
             "Verify the snapshot is ready to use (readyToUse: true)",
-            "Document the snapshot creation timestamp",
+            "Add an annotation to the snapshot resource with the key 'backup-reason' and value 'pre-upgrade-backup'.",
             "Create a VirtualMachineRestore resource named 'backend-restore-v1' to test restore functionality",
             "Monitor the restore operation until completion",
             "Verify the VM starts successfully after restore"
@@ -226,14 +226,13 @@
         "Initiate a live migration for 'postgres-primary'",
         "Monitor the VirtualMachineInstanceMigration (VMIM) resource",
         "Verify the migration completes successfully",
-        "Confirm the VM is running on a different node after migration",
-        "Verify the VM remains accessible during and after migration",
-        "Document the original and destination node names"
-      ]
-    }
-  ]
-},
-{
+                    "Confirm the VM is running on a different node after migration",
+                    "Verify the VM remains accessible during and after migration",
+                    "After migration, check the events of the VirtualMachineInstance to confirm the 'MigrationSucceeded' event was logged."
+                  ]
+                }
+              ]
+            },{
   "id": "task12",
   "title": "Prepare node for maintenance and drain workloads",
   "solution": "# Solution for Task 12\n# 1. Identify node with VMs\nNODE_NAME=$(oc get vmi -n app-frontend-ns -o jsonpath='{.items[0].status.nodeName}')\necho \"Selected node for maintenance: $NODE_NAME\"\n\n# 2. Cordon the node\noc adm cordon $NODE_NAME\n\n# 3. Check node status\noc get node $NODE_NAME\n\n# 4. Drain the node (with VM migration)\noc adm drain $NODE_NAME \\\n  --ignore-daemonsets \\\n  --delete-emptydir-data \\\n  --force \\\n  --timeout=600s\n\n# 5. Verify VMs have migrated\noc get vmi --all-namespaces -o wide | grep -v $NODE_NAME\n\n# 6. Verify node is empty of VMs\noc get pods --all-namespaces -o wide --field-selector spec.nodeName=$NODE_NAME\n\n# 7. After maintenance, uncordon the node\n# oc adm uncordon $NODE_NAME",
@@ -247,14 +246,13 @@
         "Verify the node status shows as 'SchedulingDisabled'",
         "Drain the node using 'oc adm drain' with appropriate flags",
         "Ensure all VMs are live-migrated to other nodes",
-        "Verify no VM pods remain on the drained node (except DaemonSets)",
-        "Document the drain operation completion time",
-        "Note the command to uncordon the node after maintenance"
-      ]
-    }
-  ]
-},
-{
+                    "Verify no VM pods remain on the drained node (except DaemonSets)",
+                                "After the drain completes, run 'oc get pods' on the node to confirm no workload pods remain.",
+                                "After the node is drained, uncordon it to mark it as schedulable again."
+                              ]
+                            }
+                          ]
+                        },{
   "id": "task13",
   "title": "Clone VM and modify template",
   "solution": "# Solution for Task 13\\n# 1. Stop source VM\\nvirtctl stop app-frontend -n app-frontend-ns\\noc wait --for=condition=Ready=false vmi/app-frontend -n app-frontend-ns --timeout=120s\\n\\n# 2. Create VM clone\\ncat <<EOF | oc create -n app-frontend-ns -f -\\napiVersion: clone.kubevirt.io/v1alpha1\\nkind: VirtualMachineClone\\nmetadata:\\n  name: frontend-clone-operation\\nspec:\\n  source:\\n    apiGroup: kubevirt.io\\n    kind: VirtualMachine\\n    name: app-frontend\\n  target:\\n    apiGroup: kubevirt.io\\n    kind: VirtualMachine\\n    name: app-frontend-clone\\nEOF\\n\\n# 3. Wait for clone to complete\\noc wait --for=condition=Succeeded vmclone/frontend-clone-operation -n app-frontend-ns --timeout=600s\\n\\n# 4. Start both VMs\\nvirtctl start app-frontend -n app-frontend-ns\\nvirtctl start app-frontend-clone -n app-frontend-ns\\n\\n# 5. Wait for VMs to be ready\\noc wait --for=condition=Ready vmi/app-frontend -n app-frontend-ns --timeout=300s\\noc wait --for=condition=Ready vmi/app-frontend-clone -n app-frontend-ns --timeout=300s\\n\\n# 6. Create custom template from cloned VM\\ncat <<EOF | oc create -n app-frontend-ns -f -\\napiVersion: template.openshift.io/v1\\nkind: Template\\nmetadata:\\n  name: nginx-frontend-template\\n  annotations:\\n    description: \"Custom NGINX frontend template with external network\"\\n    tags: \"nginx,frontend,rhel9\"\\nparameters:\\n- name: VM_NAME\\n  description: \"Name of the virtual machine\"\\n  required: true\\n- name: MEMORY\\n  description: \"Amount of memory\"\\n  value: \"2Gi\"\\n- name: CPU_CORES\\n  description: \"Number of CPU cores\"\\n  value: \"1\"\\nobjects:\\n- apiVersion: kubevirt.io/v1\\n  kind: VirtualMachine\\n  metadata:\\n    name: ${VM_NAME}\\n  spec:\\n    running: false\\n    template:\\n      metadata:\\n        labels:\\n          kubevirt.io/domain: ${VM_NAME}\\n      spec:\\n        domain:\\n          devices:\\n            disks:\\n            - disk:\\n                bus: virtio\\n              name: containerdisk\\n            - disk:\\n                bus: virtio\\n              name: cloudinitdisk\\n            interfaces:\\n            - name: default\\n              masquerade: {}\\n          resources:\\n            requests:\\n              memory: ${MEMORY}\\n              cpu: ${CPU_CORES}\\n        networks:\\n        - name: default\\n          pod: {}\\n        volumes:\\n        - name: containerdisk\\n          containerDisk:\\n            image: registry.redhat.io/rhel9/rhel-guest-image:latest\\n        - name: cloudinitdisk\\n          cloudInitNoCloud:\\n            userData: |\\n              #cloud-config\\n              yum_repos:\\n                custom-rhel9-repo:\\n                  name: Custom RHEL9 Repository\\n                  baseurl: http://repo.ocp4.example.com/rhel9/\\n                  enabled: true\\n                  gpgcheck: false\\n              packages:\\n                - nginx\\n              runcmd:\\n                - systemctl enable nginx\\n                - systemctl start nginx\\nEOF\\n\\n# 7. Test template by creating new VM\\noc process nginx-frontend-template -p VM_NAME=test-frontend -n app-frontend-ns | oc create -f -\\n\\n# 8. Start the test VM\\nvirtctl start test-frontend -n app-frontend-ns",

@@ -268,7 +268,7 @@
             "Drain the node using proper flags for VirtualMachineInstances",
             "Use --ignore-daemonsets, --delete-emptydir-data, and --force flags",
             "Verify all VMs have migrated to other nodes",
-            "Document the commands to uncordon and remove taint after maintenance"
+            "After the node is drained, uncordon it and remove the 'maintenance=true' taint to return it to service."
           ]
         }
       ]

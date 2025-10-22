@@ -289,7 +289,7 @@
             "Verify all VMs that were running on the node have been successfully migrated to other nodes.",
             "Confirm the node is marked as unschedulable (cordoned).",
             "Verify no VirtualMachineInstances remain running on the maintenance node.",
-            "Document the process to uncordon the node after maintenance (delete the NodeMaintenance resource)."
+            "After maintenance is complete, delete the NodeMaintenance resource to return the node to service."
           ]
         }
       ]

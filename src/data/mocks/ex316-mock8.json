@@ -314,7 +314,7 @@
             "Apply appropriate fixes: storage class, resources, network refs.",
             "Restart VM and verify it reaches Running state.",
             "Access VM console to confirm functionality.",
-            "Document root cause and resolution steps."
+            "After applying the fixes, ensure the VM starts successfully and is fully accessible."
           ]
         }
       ]
