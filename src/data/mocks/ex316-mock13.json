@@ -1,0 +1,352 @@
+{
+  "examId": "ex316-2",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 2: Advanced Edition",
+  "description": "A comprehensive 15-task advanced exam covering RBAC, OADP with ODF backend, disk operations, multi-network configurations, cloud-init with custom repos, service management, and real-world scenarios for OpenShift 4.16.",
+  "timeLimit": "4h",
+  "prerequisites": "# Prerequisites Setup Script\n# Run this script before starting the exam to prepare the environment.\n\necho \"Setting up prerequisites for EX316 Mock 2...\"\n\n# Ensure OADP operator is installed and configured with ODF backend\necho \"Verifying OADP operator with ODF backend...\"\noc get dpa -n openshift-adp\n\n# Ensure default storage class is available\noc get sc\n\n# Ensure NMState operator is installed for multi-network configurations\noc get deployment -n openshift-nmstate\n\n# Create custom package repository ConfigMap for cloud-init\noc create configmap custom-repo-config -n openshift-cnv \\\n  --from-literal=repo-url=\"http://mirror.example.local/rhel9/BaseOS\" \\\n  --from-literal=repo-name=\"custom-rhel9\" \\\n  --dry-run=client -o yaml | oc apply -f -\n\necho \"Custom repository details:\"\necho \"  Repository URL: http://mirror.example.local/rhel9/BaseOS\"\necho \"  Repository Name: custom-rhel9\"\necho \"  GPG Check: disabled (gpgcheck=0)\"\necho \"\"\necho \"Use these details in cloud-init configurations for package installations.\"\necho \"\"\necho \"Prerequisites setup complete. You may now start the exam.\"\n",
+  "tasks": [
+    {
+      "id": "task01",
+      "title": "Deploy an application server with cloud-init package installation",
+      "solution": "# Solution for Task 01\n\n# 1. Create namespace\noc create namespace appserver-prod-ns\n\n# 2. Create VM with cloud-init configuration\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: app-server-01\n  labels:\n    app: production\n    tier: backend\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: app-server-01\n    spec:\n      domain:\n        cpu:\n          cores: 2\n        memory:\n          guest: 4Gi\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.2\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            yum_repos:\n              custom-rhel9:\n                name: Custom RHEL9 Repository\n                baseurl: http://mirror.example.local/rhel9/BaseOS\n                enabled: true\n                gpgcheck: false\n            packages:\n              - httpd\n              - mod_ssl\n              - php\n            runcmd:\n              - systemctl enable httpd\n              - systemctl start httpd\n              - firewall-cmd --permanent --add-service=http\n              - firewall-cmd --permanent --add-service=https\n              - firewall-cmd --reload\nEOF\n\n# 3. Wait for VM to be ready\noc wait --for=condition=Ready vmi/app-server-01 -n appserver-prod-ns --timeout=600s\n\n# 4. Verify package installation and service status\nvirtctl ssh cloud-user@app-server-01 -n appserver-prod-ns\n# Inside VM:\n# sudo systemctl status httpd\n# rpm -q httpd mod_ssl php",
+      "sections": [
+        {
+          "title": "VM Provisioning with Custom Repository",
+          "notice": "Create all resources in a new namespace 'appserver-prod-ns'. For package installation, you MUST configure the custom repository using cloud-init. Repository details: URL='http://mirror.example.local/rhel9/BaseOS', Name='custom-rhel9', GPGCheck=disabled. Install packages: httpd, mod_ssl, php. Enable and start the httpd service automatically.",
+          "subtasks": [
+            "Create a new namespace named 'appserver-prod-ns'.",
+            "Deploy a VM named 'app-server-01' using a RHEL9 container disk image.",
+            "Use cloud-init to configure the custom repository with the provided details.",
+            "Install the following packages via cloud-init: httpd, mod_ssl, php.",
+            "Configure cloud-init to enable and start the httpd service on first boot.",
+            "Ensure the VM has 2 CPU cores and 4Gi memory."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task02",
+      "title": "Configure granular RBAC for VM operations",
+      "solution": "# Solution for Task 02\n\n# 1. Create service accounts and users\noc create serviceaccount vm-operator -n appserver-prod-ns\noc create serviceaccount vm-viewer -n appserver-prod-ns\n\n# 2. Create custom Role for VM operators (start, stop, restart)\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: vm-operator-role\nrules:\n- apiGroups: [\"kubevirt.io\"]\n  resources: [\"virtualmachines\"]\n  verbs: [\"get\", \"list\", \"watch\"]\n- apiGroups: [\"subresources.kubevirt.io\"]\n  resources: [\"virtualmachines/start\", \"virtualmachines/stop\", \"virtualmachines/restart\"]\n  verbs: [\"update\"]\nEOF\n\n# 3. Create custom Role for VM viewers (read-only)\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: vm-viewer-role\nrules:\n- apiGroups: [\"kubevirt.io\"]\n  resources: [\"virtualmachines\", \"virtualmachineinstances\"]\n  verbs: [\"get\", \"list\", \"watch\"]\n- apiGroups: [\"\"]\n  resources: [\"pods\", \"pods/log\"]\n  verbs: [\"get\", \"list\"]\nEOF\n\n# 4. Create RoleBindings\noc create rolebinding vm-operator-binding \\\n  --role=vm-operator-role \\\n  --serviceaccount=appserver-prod-ns:vm-operator \\\n  -n appserver-prod-ns\n\noc create rolebinding vm-viewer-binding \\\n  --role=vm-viewer-role \\\n  --serviceaccount=appserver-prod-ns:vm-viewer \\\n  -n appserver-prod-ns\n\n# 5. Verify RBAC configuration\noc auth can-i start vm --as=system:serviceaccount:appserver-prod-ns:vm-operator -n appserver-prod-ns\noc auth can-i delete vm --as=system:serviceaccount:appserver-prod-ns:vm-operator -n appserver-prod-ns\noc auth can-i get vm --as=system:serviceaccount:appserver-prod-ns:vm-viewer -n appserver-prod-ns\noc auth can-i stop vm --as=system:serviceaccount:appserver-prod-ns:vm-viewer -n appserver-prod-ns",
+      "sections": [
+        {
+          "title": "Advanced RBAC Configuration",
+          "notice": "Configure fine-grained access control for VM operations in the 'appserver-prod-ns' namespace. Create two distinct roles with different permission levels.",
+          "subtasks": [
+            "Create a ServiceAccount named 'vm-operator' in 'appserver-prod-ns'.",
+            "Create a ServiceAccount named 'vm-viewer' in 'appserver-prod-ns'.",
+            "Create a Role named 'vm-operator-role' that allows: get, list, watch on VMs, and start/stop/restart operations on VMs.",
+            "Create a Role named 'vm-viewer-role' that allows: get, list, watch on VMs and VMIs, and get/list on pods and pod logs (read-only access).",
+            "Bind 'vm-operator-role' to the 'vm-operator' ServiceAccount.",
+            "Bind 'vm-viewer-role' to the 'vm-viewer' ServiceAccount.",
+            "Verify that 'vm-operator' can start VMs but NOT delete them.",
+            "Verify that 'vm-viewer' can view VMs but NOT stop them."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task03",
+      "title": "Migrate web application data between servers using disk transfer",
+      "solution": "# Solution for Task 03\n\n# 1. Create DataVolume for web server VM (old server)\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: web-server-old-rootdisk\nspec:\n  source:\n    http:\n      url: \"https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-20231127.0.x86_64.qcow2\"\n  storage:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 30Gi\nEOF\n\n# 2. Create DataVolume for new web server VM\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: web-server-new-rootdisk\nspec:\n  source:\n    http:\n      url: \"https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-20231127.0.x86_64.qcow2\"\n  storage:\n    accessModes:\n    - ReadWriteOnce\n    resources:\n      requests:\n        storage: 30Gi\nEOF\n\n# 3. Wait for DataVolumes to be ready\noc wait --for=condition=Ready dv/web-server-old-rootdisk -n appserver-prod-ns --timeout=900s\noc wait --for=condition=Ready dv/web-server-new-rootdisk -n appserver-prod-ns --timeout=900s\n\n# 4. Deploy old web server VM\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: web-server-old\n  labels:\n    app: legacy-website\n    tier: production\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: web-server-old\n        app: legacy-website\n    spec:\n      domain:\n        cpu:\n          cores: 2\n        memory:\n          guest: 4Gi\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: web-server-old-rootdisk\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            user: centos\n            password: redhat123\n            chpasswd: { expire: False }\n            ssh_pwauth: True\n            yum_repos:\n              custom-rhel9:\n                name: Custom RHEL9 Repository\n                baseurl: http://mirror.example.local/rhel9/BaseOS\n                enabled: true\n                gpgcheck: false\n            packages:\n              - httpd\n              - mod_ssl\n            runcmd:\n              - systemctl enable httpd\n              - systemctl start httpd\n              - firewall-cmd --permanent --add-service=http\n              - firewall-cmd --permanent --add-service=https\n              - firewall-cmd --reload\nEOF\n\n# 5. Deploy new web server VM (upgrade target)\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: web-server-new\n  labels:\n    app: upgraded-website\n    tier: production\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: web-server-new\n        app: upgraded-website\n    spec:\n      domain:\n        cpu:\n          cores: 4\n        memory:\n          guest: 8Gi\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: web-server-new-rootdisk\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            user: centos\n            password: redhat123\n            chpasswd: { expire: False }\n            ssh_pwauth: True\n            yum_repos:\n              custom-rhel9:\n                name: Custom RHEL9 Repository\n                baseurl: http://mirror.example.local/rhel9/BaseOS\n                enabled: true\n                gpgcheck: false\n            packages:\n              - httpd\n              - mod_ssl\n              - php\n              - php-fpm\n            runcmd:\n              - systemctl enable httpd php-fpm\n              - systemctl start httpd php-fpm\n              - firewall-cmd --permanent --add-service=http\n              - firewall-cmd --permanent --add-service=https\n              - firewall-cmd --reload\nEOF\n\n# 6. Wait for VMs to be ready\noc wait --for=condition=Ready vmi/web-server-old -n appserver-prod-ns --timeout=600s\noc wait --for=condition=Ready vmi/web-server-new -n appserver-prod-ns --timeout=600s\n\n# 7. Create PVC for website content (to be transferred)\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: website-content-disk\nspec:\n  accessModes:\n  - ReadWriteOnce\n  volumeMode: Filesystem\n  resources:\n    requests:\n      storage: 100Gi\nEOF\n\n# 8. Create PVC for database backup (block device)\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: database-backup-disk\nspec:\n  accessModes:\n  - ReadWriteOnce\n  volumeMode: Block\n  resources:\n    requests:\n      storage: 200Gi\nEOF\n\n# 9. Stop old web server to attach content disk\noc virt stop web-server-old -n appserver-prod-ns\noc wait --for=condition=Ready=false vmi/web-server-old -n appserver-prod-ns --timeout=120s\n\n# 10. Attach website content disk to old server\noc patch vm web-server-old -n appserver-prod-ns --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/disks/-\", \"value\": {\"name\": \"webcontent\", \"disk\": {\"bus\": \"virtio\"}}}, {\"op\": \"add\", \"path\": \"/spec/template/spec/volumes/-\", \"value\": {\"name\": \"webcontent\", \"persistentVolumeClaim\": {\"claimName\": \"website-content-disk\"}}}]'\n\n# 11. Attach database backup disk to old server\noc patch vm web-server-old -n appserver-prod-ns --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/disks/-\", \"value\": {\"name\": \"dbbackup\", \"disk\": {\"bus\": \"virtio\"}}}, {\"op\": \"add\", \"path\": \"/spec/template/spec/volumes/-\", \"value\": {\"name\": \"dbbackup\", \"persistentVolumeClaim\": {\"claimName\": \"database-backup-disk\"}}}]'\n\n# 12. Start old web server\noc virt start web-server-old -n appserver-prod-ns\noc wait --for=condition=Ready vmi/web-server-old -n appserver-prod-ns --timeout=300s\n\n# 13. Inside old server, prepare website content and database backup\nvirtctl console web-server-old -n appserver-prod-ns\n# Inside old web server VM:\n# sudo mkfs.xfs /dev/vdb\n# sudo mkdir -p /mnt/website\n# sudo mount /dev/vdb /mnt/website\n#\n# # Create realistic website content\n# sudo mkdir -p /mnt/website/html\n# sudo mkdir -p /mnt/website/cgi-bin\n# sudo mkdir -p /mnt/website/uploads\n# sudo mkdir -p /mnt/website/logs\n#\n# # Create main website files\n# cat <<HTMLEOF | sudo tee /mnt/website/html/index.html\n# <!DOCTYPE html>\n# <html><head><title>Company Portal</title></head>\n# <body><h1>Welcome to Corporate Portal</h1>\n# <p>Legacy system - Production since 2020</p></body></html>\n# HTMLEOF\n#\n# cat <<HTMLEOF | sudo tee /mnt/website/html/products.html\n# <!DOCTYPE html>\n# <html><head><title>Products</title></head>\n# <body><h1>Our Products</h1><ul>\n# <li>Product A</li><li>Product B</li><li>Product C</li>\n# </ul></body></html>\n# HTMLEOF\n#\n# cat <<HTMLEOF | sudo tee /mnt/website/html/contact.html\n# <!DOCTYPE html>\n# <html><head><title>Contact Us</title></head>\n# <body><h1>Contact Information</h1>\n# <p>Email: info@company.com</p></body></html>\n# HTMLEOF\n#\n# # Create configuration files\n# sudo mkdir -p /mnt/website/conf\n# echo \"ServerName company.local\" | sudo tee /mnt/website/conf/custom.conf\n# echo \"DocumentRoot /var/www/html\" | sudo tee -a /mnt/website/conf/custom.conf\n#\n# # Create customer uploaded files simulation\n# echo \"Customer Order #12345 - 2024\" | sudo tee /mnt/website/uploads/order_12345.txt\n# echo \"Customer Order #12346 - 2024\" | sudo tee /mnt/website/uploads/order_12346.txt\n#\n# # Create access logs\n# echo \"192.168.1.100 - - [23/Oct/2024:10:00:00] GET /index.html 200\" | sudo tee /mnt/website/logs/access.log\n#\n# # Simulate database backup on block device\n# echo \"Creating database backup on block device...\"\n# sudo dd if=/dev/zero of=/tmp/fake_db_backup.img bs=1M count=100\n# echo \"Database: production_db, Tables: 45, Size: 2.5GB, Date: $(date)\" | sudo tee /tmp/db_metadata.txt\n# sudo dd if=/tmp/fake_db_backup.img of=/dev/vdc bs=1M\n# \n# # Set proper permissions\n# sudo chown -R apache:apache /mnt/website/html\n# sudo chmod -R 755 /mnt/website/html\n#\n# # Verify content\n# ls -lah /mnt/website/html/\n# du -sh /mnt/website/*\n#\n# # Unmount before transfer\n# sudo umount /mnt/website\n# exit\n\n# 14. Stop old web server to detach disks\noc virt stop web-server-old -n appserver-prod-ns\noc wait --for=condition=Ready=false vmi/web-server-old -n appserver-prod-ns --timeout=120s\n\n# 15. Detach both disks from old server (find correct indices first)\noc get vm web-server-old -n appserver-prod-ns -o yaml | grep -A 5 \"disks:\\|volumes:\"\n# Assuming webcontent is at index 1 and dbbackup at index 2 in both disks and volumes\noc patch vm web-server-old -n appserver-prod-ns --type=json -p '[{\"op\": \"remove\", \"path\": \"/spec/template/spec/domain/devices/disks/2\"}, {\"op\": \"remove\", \"path\": \"/spec/template/spec/domain/devices/disks/1\"}]'\noc patch vm web-server-old -n appserver-prod-ns --type=json -p '[{\"op\": \"remove\", \"path\": \"/spec/template/spec/volumes/2\"}, {\"op\": \"remove\", \"path\": \"/spec/template/spec/volumes/1\"}]'\n\n# 16. Stop new web server to attach disks\noc virt stop web-server-new -n appserver-prod-ns\noc wait --for=condition=Ready=false vmi/web-server-new -n appserver-prod-ns --timeout=120s\n\n# 17. Attach website content disk to new server\noc patch vm web-server-new -n appserver-prod-ns --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/disks/-\", \"value\": {\"name\": \"webcontent\", \"disk\": {\"bus\": \"virtio\"}}}, {\"op\": \"add\", \"path\": \"/spec/template/spec/volumes/-\", \"value\": {\"name\": \"webcontent\", \"persistentVolumeClaim\": {\"claimName\": \"website-content-disk\"}}}]'\n\n# 18. Attach database backup disk to new server\noc patch vm web-server-new -n appserver-prod-ns --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/disks/-\", \"value\": {\"name\": \"dbbackup\", \"disk\": {\"bus\": \"virtio\"}}}, {\"op\": \"add\", \"path\": \"/spec/template/spec/volumes/-\", \"value\": {\"name\": \"dbbackup\", \"persistentVolumeClaim\": {\"claimName\": \"database-backup-disk\"}}}]'\n\n# 19. Start new web server\noc virt start web-server-new -n appserver-prod-ns\noc wait --for=condition=Ready vmi/web-server-new -n appserver-prod-ns --timeout=300s\n\n# 20. Inside new server, verify and configure transferred content\nvirtctl console web-server-new -n appserver-prod-ns\n# Inside new web server VM:\n# lsblk (should show vdb and vdc)\n#\n# # Mount website content\n# sudo mkdir -p /mnt/website\n# sudo mount /dev/vdb /mnt/website\n#\n# # Verify all files transferred successfully\n# ls -lah /mnt/website/html/\n# cat /mnt/website/html/index.html\n# cat /mnt/website/uploads/order_12345.txt\n#\n# # Link to Apache document root\n# sudo rm -rf /var/www/html/*\n# sudo ln -s /mnt/website/html/* /var/www/html/\n#\n# # Configure Apache to use transferred config\n# sudo cp /mnt/website/conf/custom.conf /etc/httpd/conf.d/\n#\n# # Add to fstab for persistence\n# echo '/dev/vdb /mnt/website xfs defaults 0 0' | sudo tee -a /etc/fstab\n#\n# # Restart Apache to apply changes\n# sudo systemctl restart httpd\n# sudo systemctl status httpd\n#\n# # Verify website is accessible\n# curl http://localhost/index.html\n#\n# # Verify database backup disk (block device)\n# lsblk -f (vdc should show as raw block device)\n# sudo dd if=/dev/vdc bs=1M count=10 | strings | head -20\n#\n# exit\n\n# 21. Create service for new web server\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: v1\nkind: Service\nmetadata:\n  name: web-server-new-svc\nspec:\n  selector:\n    kubevirt.io/domain: web-server-new\n  ports:\n  - name: http\n    port: 80\n    targetPort: 80\n    protocol: TCP\n  - name: https\n    port: 443\n    targetPort: 443\n    protocol: TCP\n  type: ClusterIP\nEOF\n\n# 22. Create route for external access\noc create route edge web-portal --service=web-server-new-svc -n appserver-prod-ns\n\n# 23. Verify migration success\nROUTE_URL=$(oc get route web-portal -n appserver-prod-ns -o jsonpath='{.spec.host}')\necho \"Website migrated successfully to: https://$ROUTE_URL\"\ncurl -k https://$ROUTE_URL/index.html\n\n# 24. Optionally restart old server without disks for archival\noc virt start web-server-old -n appserver-prod-ns",
+      "sections": [
+        {
+          "title": "Website Migration: Transfer Content and Database Between Servers",
+          "notice": "Your company is upgrading from an old web server (RHEL 9 with Apache 2.4) to a new high-performance server (RHEL 9 with Apache 2.4 + PHP 8). You must migrate all website content, customer uploads, configuration files, and database backups from the old server to the new server without data loss. The old server hosts a corporate portal with HTML pages, customer order files, and critical database backups. Work in 'appserver-prod-ns' namespace. QCOW2 image: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-20231127.0.x86_64.qcow2. Custom repo: http://mirror.example.local/rhel9/BaseOS. For route testing, verify content serves correctly.",
+          "subtasks": [
+            "Create DataVolume 'web-server-old-rootdisk' from qcow2 URL with 30Gi storage.",
+            "Create DataVolume 'web-server-new-rootdisk' from qcow2 URL with 30Gi storage.",
+            "Deploy VM 'web-server-old' (old production server) with 2 CPUs, 4Gi RAM, using custom repo to install httpd and mod_ssl packages via cloud-init.",
+            "Deploy VM 'web-server-new' (upgraded server) with 4 CPUs, 8Gi RAM, using custom repo to install httpd, mod_ssl, php, and php-fpm packages via cloud-init.",
+            "Create 100Gi PVC 'website-content-disk' (Filesystem mode) for website files, configs, and uploads.",
+            "Create 200Gi PVC 'database-backup-disk' (Block mode) for database backup storage.",
+            "Stop 'web-server-old' and attach both 'website-content-disk' and 'database-backup-disk'.",
+            "Start 'web-server-old', then inside the VM format 'website-content-disk' with XFS and mount at /mnt/website.",
+            "Create realistic website structure: /mnt/website/html/ with index.html, products.html, contact.html files containing corporate portal content.",
+            "Create /mnt/website/conf/ directory with custom Apache configuration file (custom.conf).",
+            "Create /mnt/website/uploads/ directory with simulated customer order files (order_12345.txt, order_12346.txt).",
+            "Create /mnt/website/logs/ directory with access log file.",
+            "Simulate database backup by writing backup data to the block device (/dev/vdc) using dd command.",
+            "Set proper permissions on website files (apache:apache ownership, 755 permissions).",
+            "Unmount /mnt/website cleanly before transfer.",
+            "Stop 'web-server-old' and detach both disks from its configuration.",
+            "Stop 'web-server-new' and attach both 'website-content-disk' and 'database-backup-disk' to it.",
+            "Start 'web-server-new', mount 'website-content-disk' at /mnt/website, and verify ALL files are intact (HTML pages, uploads, configs, logs).",
+            "Create symbolic links from /mnt/website/html/* to /var/www/html/ for Apache to serve content.",
+            "Copy custom Apache configuration from /mnt/website/conf/custom.conf to /etc/httpd/conf.d/.",
+            "Add 'website-content-disk' to /etc/fstab for automatic mounting on boot.",
+            "Restart httpd service and verify it's serving the migrated content.",
+            "Test website accessibility with curl http://localhost/index.html inside the VM.",
+            "Verify database backup disk is accessible as raw block device and contains data.",
+            "Create ClusterIP service 'web-server-new-svc' exposing ports 80 and 443 for the new server.",
+            "Create an edge-terminated Route named 'web-portal' to expose the website externally.",
+            "Verify the migration was successful by accessing the route URL and confirming all pages (index.html, products.html, contact.html) are accessible.",
+            "Document that old server can be restarted without disks for archival/audit purposes."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task04",
+      "title": "Deploy database server with NodePort service exposure",
+      "solution": "# Solution for Task 04\n\n# 1. Create namespace\noc create namespace database-tier-ns\n\n# 2. Deploy PostgreSQL VM with cloud-init\ncat <<EOF | oc apply -n database-tier-ns -f -\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: postgres-db-01\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: postgres-db-01\n        app: database\n    spec:\n      domain:\n        cpu:\n          cores: 4\n        memory:\n          guest: 8Gi\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.2\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            yum_repos:\n              custom-rhel9:\n                name: Custom RHEL9 Repository\n                baseurl: http://mirror.example.local/rhel9/BaseOS\n                enabled: true\n                gpgcheck: false\n            packages:\n              - postgresql-server\n              - postgresql-contrib\n            runcmd:\n              - postgresql-setup --initdb\n              - systemctl enable postgresql\n              - systemctl start postgresql\n              - sed -i \"s/#listen_addresses = 'localhost'/listen_addresses = '*'/\" /var/lib/pgsql/data/postgresql.conf\n              - echo 'host all all 0.0.0.0/0 md5' >> /var/lib/pgsql/data/pg_hba.conf\n              - systemctl restart postgresql\nEOF\n\n# 3. Wait for VM to be ready\noc wait --for=condition=Ready vmi/postgres-db-01 -n database-tier-ns --timeout=600s\n\n# 4. Create ClusterIP service\ncat <<EOF | oc apply -n database-tier-ns -f -\napiVersion: v1\nkind: Service\nmetadata:\n  name: postgres-svc-cluster\nspec:\n  selector:\n    kubevirt.io/domain: postgres-db-01\n  ports:\n  - name: postgres\n    port: 5432\n    targetPort: 5432\n    protocol: TCP\n  type: ClusterIP\nEOF\n\n# 5. Create NodePort service\ncat <<EOF | oc apply -n database-tier-ns -f -\napiVersion: v1\nkind: Service\nmetadata:\n  name: postgres-svc-nodeport\nspec:\n  selector:\n    kubevirt.io/domain: postgres-db-01\n  ports:\n  - name: postgres\n    port: 5432\n    targetPort: 5432\n    nodePort: 30432\n    protocol: TCP\n  type: NodePort\nEOF\n\n# 6. Verify services\noc get svc -n database-tier-ns\noc describe svc postgres-svc-nodeport -n database-tier-ns",
+      "sections": [
+        {
+          "title": "Database Deployment with Service Configuration",
+          "notice": "Deploy a PostgreSQL database server in a new namespace 'database-tier-ns'. Configure the custom repository (URL: http://mirror.example.local/rhel9/BaseOS, Name: custom-rhel9, no GPG check) via cloud-init to install postgresql-server and postgresql-contrib packages. Configure PostgreSQL to listen on all interfaces. Create both ClusterIP and NodePort services.",
+          "subtasks": [
+            "Create a new namespace named 'database-tier-ns'.",
+            "Deploy a VM named 'postgres-db-01' with 4 CPU cores and 8Gi memory.",
+            "Use cloud-init with the custom repository to install postgresql-server and postgresql-contrib.",
+            "Configure cloud-init to initialize PostgreSQL database and enable/start the service.",
+            "Configure PostgreSQL to accept connections from all network interfaces.",
+            "Create a ClusterIP service named 'postgres-svc-cluster' exposing port 5432.",
+            "Create a NodePort service named 'postgres-svc-nodeport' exposing port 5432 on nodePort 30432.",
+            "Verify both services are created and properly configured."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task05",
+      "title": "Configure multi-homed VM with NMState and Multus",
+      "solution": "# Solution for Task 05\n\n# 1. Create namespace\noc create namespace multinet-app-ns\n\n# 2. Create NodeNetworkConfigurationPolicy for bridge\ncat <<EOF | oc apply -f -\napiVersion: nmstate.io/v1\nkind: NodeNetworkConfigurationPolicy\nmetadata:\n  name: br-frontend-policy\nspec:\n  nodeSelector:\n    node-role.kubernetes.io/worker: \"\"\n  desiredState:\n    interfaces:\n    - name: br-frontend\n      type: linux-bridge\n      state: up\n      ipv4:\n        enabled: false\n      bridge:\n        options:\n          stp:\n            enabled: false\n        port:\n        - name: eth1\nEOF\n\n# 3. Wait for bridge configuration\nsleep 30\noc get nncp br-frontend-policy\n\n# 4. Create NetworkAttachmentDefinition for frontend network\ncat <<EOF | oc apply -n multinet-app-ns -f -\napiVersion: k8s.cni.cncf.io/v1\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: frontend-network\nspec:\n  config: |\n    {\n      \"cniVersion\": \"0.3.1\",\n      \"name\": \"frontend-network\",\n      \"type\": \"cnv-bridge\",\n      \"bridge\": \"br-frontend\",\n      \"vlan\": 200,\n      \"ipam\": {\n        \"type\": \"static\"\n      }\n    }\nEOF\n\n# 5. Create NetworkAttachmentDefinition for backend network\ncat <<EOF | oc apply -n multinet-app-ns -f -\napiVersion: k8s.cni.cncf.io/v1\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: backend-network\nspec:\n  config: |\n    {\n      \"cniVersion\": \"0.3.1\",\n      \"name\": \"backend-network\",\n      \"type\": \"cnv-bridge\",\n      \"bridge\": \"br-backend\",\n      \"vlan\": 300,\n      \"ipam\": {\n        \"type\": \"static\"\n      }\n    }\nEOF\n\n# 6. Deploy multi-homed VM\ncat <<EOF | oc apply -n multinet-app-ns -f -\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: gateway-vm\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: gateway-vm\n      annotations:\n        k8s.v1.cni.cncf.io/networks: |\n          [\n            {\"name\": \"frontend-network\", \"namespace\": \"multinet-app-ns\"},\n            {\"name\": \"backend-network\", \"namespace\": \"multinet-app-ns\"}\n          ]\n    spec:\n      domain:\n        cpu:\n          cores: 2\n        memory:\n          guest: 4Gi\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n          - name: net1\n            bridge: {}\n          - name: net2\n            bridge: {}\n      networks:\n      - name: default\n        pod: {}\n      - name: net1\n        multus:\n          networkName: frontend-network\n      - name: net2\n        multus:\n          networkName: backend-network\n      volumes:\n      - name: rootdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.2\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            runcmd:\n              - echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf\n              - sysctl -p\nEOF\n\n# 7. Verify VM and network configuration\noc wait --for=condition=Ready vmi/gateway-vm -n multinet-app-ns --timeout=600s\nvirtctl ssh cloud-user@gateway-vm -n multinet-app-ns\n# Inside VM: ip a (should show eth0, eth1, eth2)",
+      "sections": [
+        {
+          "title": "Multi-Network Configuration with NMState and Multus",
+          "notice": "Create a multi-homed VM connected to three networks: default pod network, frontend network (VLAN 200), and backend network (VLAN 300). Work in a new namespace 'multinet-app-ns'. Use NMState operator to configure bridge interfaces on worker nodes.",
+          "subtasks": [
+            "Create a new namespace named 'multinet-app-ns'.",
+            "Create a NodeNetworkConfigurationPolicy to configure a Linux bridge 'br-frontend' on worker nodes.",
+            "Create a NetworkAttachmentDefinition named 'frontend-network' using cnv-bridge type with VLAN 200.",
+            "Create a NetworkAttachmentDefinition named 'backend-network' using cnv-bridge type with VLAN 300.",
+            "Deploy a VM named 'gateway-vm' with 2 CPUs and 4Gi memory.",
+            "Attach the VM to three networks: default pod network (masquerade), frontend-network (bridge), and backend-network (bridge).",
+            "Configure cloud-init to enable IP forwarding in the VM (net.ipv4.ip_forward=1).",
+            "Verify the VM has three network interfaces (eth0, eth1, eth2)."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task06",
+      "title": "Implement NetworkPolicy for database tier isolation",
+      "solution": "# Solution for Task 06\n\n# 1. Create default deny-all ingress policy\ncat <<EOF | oc apply -n database-tier-ns -f -\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: deny-all-ingress\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\nEOF\n\n# 2. Allow ingress from appserver-prod-ns only\ncat <<EOF | oc apply -n database-tier-ns -f -\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-from-appserver\nspec:\n  podSelector:\n    matchLabels:\n      app: database\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: appserver-prod-ns\n    ports:\n    - protocol: TCP\n      port: 5432\nEOF\n\n# 3. Allow ingress from multinet-app-ns via backend network\ncat <<EOF | oc apply -n database-tier-ns -f -\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-from-gateway\nspec:\n  podSelector:\n    matchLabels:\n      app: database\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: multinet-app-ns\n      podSelector:\n        matchLabels:\n          kubevirt.io/domain: gateway-vm\n    ports:\n    - protocol: TCP\n      port: 5432\nEOF\n\n# 4. Verify NetworkPolicies\noc get networkpolicies -n database-tier-ns\noc describe networkpolicy allow-from-appserver -n database-tier-ns",
+      "sections": [
+        {
+          "title": "Network Security with NetworkPolicies",
+          "notice": "Implement strict network isolation for the database tier. Work in the 'database-tier-ns' namespace. Create policies that deny all traffic by default, then selectively allow access only from authorized namespaces.",
+          "subtasks": [
+            "Create a NetworkPolicy named 'deny-all-ingress' that denies all ingress traffic to all pods in 'database-tier-ns' by default.",
+            "Create a NetworkPolicy named 'allow-from-appserver' that allows ingress traffic on port 5432 (TCP) to pods with label 'app=database' only from the 'appserver-prod-ns' namespace.",
+            "Create a NetworkPolicy named 'allow-from-gateway' that allows ingress traffic on port 5432 (TCP) to pods with label 'app=database' only from the 'gateway-vm' in 'multinet-app-ns' namespace.",
+            "Verify that the database VM can only receive traffic from the two authorized sources.",
+            "Test that traffic from other namespaces is blocked."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task07",
+      "title": "Backup virtual machines using OADP with ODF backend",
+      "solution": "# Solution for Task 07\n\n# 1. Verify OADP and ODF configuration\noc get dpa -n openshift-adp\noc get backupstoragelocation -n openshift-adp\n\n# 2. Create backup for appserver namespace\ncat <<EOF | oc apply -n openshift-adp -f -\napiVersion: velero.io/v1\nkind: Backup\nmetadata:\n  name: appserver-full-backup\nspec:\n  includedNamespaces:\n  - appserver-prod-ns\n  snapshotVolumes: true\n  storageLocation: default\n  volumeSnapshotLocations:\n  - default\n  ttl: 720h0m0s\n  includedResources:\n  - virtualmachines\n  - virtualmachineinstances\n  - persistentvolumeclaims\n  - configmaps\n  - secrets\n  - services\nEOF\n\n# 3. Create backup for database namespace\ncat <<EOF | oc apply -n openshift-adp -f -\napiVersion: velero.io/v1\nkind: Backup\nmetadata:\n  name: database-full-backup\nspec:\n  includedNamespaces:\n  - database-tier-ns\n  snapshotVolumes: true\n  storageLocation: default\n  volumeSnapshotLocations:\n  - default\n  ttl: 720h0m0s\n  labelSelector:\n    matchLabels:\n      app: database\nEOF\n\n# 4. Monitor backup progress\noc get backup appserver-full-backup -n openshift-adp -w\noc get backup database-full-backup -n openshift-adp -w\n\n# 5. Verify backup completion\noc get backup appserver-full-backup -n openshift-adp -o jsonpath='{.status.phase}'\noc get backup database-full-backup -n openshift-adp -o jsonpath='{.status.phase}'\n\n# 6. List backup contents\noc get backup appserver-full-backup -n openshift-adp -o yaml | grep -A 20 'status:'",
+      "sections": [
+        {
+          "title": "OADP Backup with ODF Storage",
+          "notice": "Use OpenShift API for Data Protection (OADP) with OpenData Foundation (ODF) as the backup storage backend. The OADP operator should already be configured with ODF. Create backups for the appserver-prod-ns and database-tier-ns namespaces. Ensure volume snapshots are included.",
+          "subtasks": [
+            "Verify that the OADP operator is installed and configured with ODF backend in the 'openshift-adp' namespace.",
+            "Create a Backup resource named 'appserver-full-backup' that backs up all resources in 'appserver-prod-ns' including VMs, VMIs, PVCs, ConfigMaps, Secrets, and Services.",
+            "Create a Backup resource named 'database-full-backup' that backs up resources in 'database-tier-ns' with label selector 'app=database'.",
+            "Enable volume snapshots for both backups.",
+            "Set TTL (time-to-live) to 720 hours for both backups.",
+            "Monitor both backup operations until they complete successfully.",
+            "Verify both backups show status 'Completed' or 'PartiallyFailed' with acceptable warnings."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task08",
+      "title": "Restore virtual machine from OADP backup",
+      "solution": "# Solution for Task 08\n\n# 1. Delete the original VM to simulate disaster\noc delete vm app-server-01 -n appserver-prod-ns\noc delete pvc app-data-disk app-db-disk -n appserver-prod-ns\n\n# 2. Create restore resource\ncat <<EOF | oc apply -n openshift-adp -f -\napiVersion: velero.io/v1\nkind: Restore\nmetadata:\n  name: appserver-restore-001\nspec:\n  backupName: appserver-full-backup\n  includedNamespaces:\n  - appserver-prod-ns\n  restorePVs: true\n  excludedResources:\n  - nodes\n  - events\n  - events.events.k8s.io\n  - backups.velero.io\n  - restores.velero.io\nEOF\n\n# 3. Monitor restore progress\noc get restore appserver-restore-001 -n openshift-adp -w\n\n# 4. Verify restoration\noc get restore appserver-restore-001 -n openshift-adp -o jsonpath='{.status.phase}'\noc get vm -n appserver-prod-ns\noc get pvc -n appserver-prod-ns\noc get vmi -n appserver-prod-ns\n\n# 5. Start the restored VM if not running\noc virt start app-server-01 -n appserver-prod-ns\noc wait --for=condition=Ready vmi/app-server-01 -n appserver-prod-ns --timeout=300s\n\n# 6. Verify data integrity\nvirtctl ssh cloud-user@app-server-01 -n appserver-prod-ns\n# Inside VM: verify httpd service and mounted volumes",
+      "sections": [
+        {
+          "title": "Disaster Recovery with OADP Restore",
+          "notice": "Simulate a disaster scenario by deleting the 'app-server-01' VM and its associated PVCs. Then restore the VM from the backup created in Task 07. Work with the 'appserver-full-backup' backup resource.",
+          "subtasks": [
+            "Delete the VM 'app-server-01' from 'appserver-prod-ns' namespace.",
+            "Delete the PVCs 'app-data-disk' and 'app-db-disk' from 'appserver-prod-ns' namespace.",
+            "Create a Restore resource named 'appserver-restore-001' to restore from 'appserver-full-backup'.",
+            "Configure the restore to include persistent volumes (restorePVs: true).",
+            "Exclude unnecessary resources like nodes, events, and backup/restore objects.",
+            "Monitor the restore operation until completion.",
+            "Verify the VM and all PVCs are restored successfully.",
+            "Start the VM if it's not automatically running.",
+            "Verify the httpd service is running and data on mounted volumes is intact."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task09",
+      "title": "Create and manage VM snapshots",
+      "solution": "# Solution for Task 09\n\n# 1. Create snapshot of database VM\ncat <<EOF | oc apply -n database-tier-ns -f -\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineSnapshot\nmetadata:\n  name: postgres-snapshot-pre-upgrade\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: postgres-db-01\nEOF\n\n# 2. Wait for snapshot to be ready\noc wait --for=condition=Ready vmsnap/postgres-snapshot-pre-upgrade -n database-tier-ns --timeout=600s\n\n# 3. Verify snapshot\noc get vmsnapshot postgres-snapshot-pre-upgrade -n database-tier-ns -o yaml\n\n# 4. Simulate changes in the VM\nvirtctl ssh cloud-user@postgres-db-01 -n database-tier-ns\n# Inside VM:\n# sudo touch /var/lib/pgsql/test-file-to-delete.txt\n# sudo systemctl stop postgresql\n# exit\n\n# 5. Restore VM from snapshot\ncat <<EOF | oc apply -n database-tier-ns -f -\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineRestore\nmetadata:\n  name: postgres-restore-from-snapshot\nspec:\n  target:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: postgres-db-01\n  virtualMachineSnapshotName: postgres-snapshot-pre-upgrade\nEOF\n\n# 6. Wait for restore to complete\noc wait --for=condition=Complete vmrestore/postgres-restore-from-snapshot -n database-tier-ns --timeout=600s\n\n# 7. Verify restoration\noc get vmrestore postgres-restore-from-snapshot -n database-tier-ns -o jsonpath='{.status.complete}'\nvirtctl ssh cloud-user@postgres-db-01 -n database-tier-ns\n# Inside VM: verify postgresql service is running and test file is removed",
+      "sections": [
+        {
+          "title": "VM Snapshot Management",
+          "notice": "Create a snapshot of the 'postgres-db-01' VM before a simulated upgrade. Then perform a restore operation from that snapshot. Work in the 'database-tier-ns' namespace.",
+          "subtasks": [
+            "Create a VirtualMachineSnapshot named 'postgres-snapshot-pre-upgrade' for the 'postgres-db-01' VM.",
+            "Wait for the snapshot to reach 'Ready' status.",
+            "Verify the snapshot includes all VM disks and configuration.",
+            "Inside the VM, create a test file '/var/lib/pgsql/test-file-to-delete.txt' and stop the postgresql service to simulate changes.",
+            "Create a VirtualMachineRestore resource named 'postgres-restore-from-snapshot' to restore from the snapshot.",
+            "Wait for the restore operation to complete.",
+            "Verify the VM is restored to its snapshot state (test file removed, postgresql service running).",
+            "Confirm the restore operation shows 'complete: true' status."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task10",
+      "title": "Clone virtual machine with disk cloning",
+      "solution": "# Solution for Task 10\n\n# 1. Stop the source VM before cloning\noc virt stop app-server-01 -n appserver-prod-ns\noc wait --for=condition=Ready=false vmi/app-server-01 -n appserver-prod-ns --timeout=120s\n\n# 2. Create VM clone\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: clone.kubevirt.io/v1alpha1\nkind: VirtualMachineClone\nmetadata:\n  name: app-server-clone-dev\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: app-server-01\n  target:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: app-server-dev\nEOF\n\n# 3. Monitor clone progress\noc get vmclone app-server-clone-dev -n appserver-prod-ns -w\n\n# 4. Wait for clone completion\noc wait --for=condition=Succeeded vmclone/app-server-clone-dev -n appserver-prod-ns --timeout=900s\n\n# 5. Verify cloned VM\noc get vm app-server-dev -n appserver-prod-ns\noc get pvc -n appserver-prod-ns | grep app-server-dev\n\n# 6. Start both VMs\noc virt start app-server-01 -n appserver-prod-ns\noc virt start app-server-dev -n appserver-prod-ns\n\n# 7. Verify both VMs are running with different MAC addresses\noc get vmi app-server-01 -n appserver-prod-ns -o jsonpath='{.spec.domain.devices.interfaces[0].macAddress}'\noc get vmi app-server-dev -n appserver-prod-ns -o jsonpath='{.spec.domain.devices.interfaces[0].macAddress}'",
+      "sections": [
+        {
+          "title": "VM Cloning for Development Environment",
+          "notice": "Clone the 'app-server-01' production VM to create a development VM named 'app-server-dev'. The clone should include all disks. Work in the 'appserver-prod-ns' namespace.",
+          "subtasks": [
+            "Stop the 'app-server-01' VM before initiating the clone operation.",
+            "Create a VirtualMachineClone resource named 'app-server-clone-dev'.",
+            "Set the source VM as 'app-server-01' and target VM name as 'app-server-dev'.",
+            "Monitor the clone operation until it succeeds.",
+            "Verify the cloned VM 'app-server-dev' is created with its own PVCs for all disks.",
+            "Start both the original and cloned VMs.",
+            "Verify both VMs are running successfully.",
+            "Confirm that the cloned VM has a different MAC address than the source VM."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Configure VM with health probes and watchdog",
+      "solution": "# Solution for Task 11\n\n# 1. Stop the VM to add watchdog device\noc virt stop app-server-dev -n appserver-prod-ns\noc wait --for=condition=Ready=false vmi/app-server-dev -n appserver-prod-ns --timeout=120s\n\n# 2. Patch VM to add watchdog device\noc patch vm app-server-dev -n appserver-prod-ns --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/watchdog\", \"value\": {\"name\": \"watchdog0\", \"i6300esb\": {\"action\": \"reset\"}}}]'\n\n# 3. Add readiness probe\noc patch vm app-server-dev -n appserver-prod-ns --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/readinessProbe\", \"value\": {\"httpGet\": {\"port\": 80, \"path\": \"/\"}, \"initialDelaySeconds\": 120, \"periodSeconds\": 10, \"timeoutSeconds\": 5, \"failureThreshold\": 3}}]'\n\n# 4. Add liveness probe\noc patch vm app-server-dev -n appserver-prod-ns --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/livenessProbe\", \"value\": {\"httpGet\": {\"port\": 80, \"path\": \"/\"}, \"initialDelaySeconds\": 180, \"periodSeconds\": 20, \"timeoutSeconds\": 10, \"failureThreshold\": 3}}]'\n\n# 5. Update run strategy to Always\noc patch vm app-server-dev -n appserver-prod-ns --type=merge -p '{\"spec\":{\"runStrategy\":\"Always\"}}'\n\n# 6. Start the VM\noc virt start app-server-dev -n appserver-prod-ns\noc wait --for=condition=Ready vmi/app-server-dev -n appserver-prod-ns --timeout=600s\n\n# 7. Verify watchdog and probes\noc get vmi app-server-dev -n appserver-prod-ns -o yaml | grep -A 10 watchdog\noc get vmi app-server-dev -n appserver-prod-ns -o yaml | grep -A 10 Probe\n\n# 8. Inside VM, install and enable watchdog\nvirtctl ssh cloud-user@app-server-dev -n appserver-prod-ns\n# Inside VM:\n# sudo dnf install -y watchdog\n# sudo systemctl enable --now watchdog\n# sudo systemctl status watchdog",
+      "sections": [
+        {
+          "title": "Health Monitoring and Watchdog Configuration",
+          "notice": "Configure comprehensive health monitoring for 'app-server-dev' VM. Add watchdog device, readiness probe, and liveness probe. Work in the 'appserver-prod-ns' namespace. Configure the custom repository if packages need to be installed.",
+          "subtasks": [
+            "Stop the 'app-server-dev' VM.",
+            "Add a watchdog device (i6300esb) to the VM with action 'reset'.",
+            "Configure a readiness probe using HTTP GET on port 80, path '/', with initialDelaySeconds=120, periodSeconds=10, timeoutSeconds=5, failureThreshold=3.",
+            "Configure a liveness probe using HTTP GET on port 80, path '/', with initialDelaySeconds=180, periodSeconds=20, timeoutSeconds=10, failureThreshold=3.",
+            "Set the VM run strategy to 'Always' to ensure automatic restart on failures.",
+            "Start the VM.",
+            "Inside the guest OS, install the 'watchdog' package and enable the watchdog service.",
+            "Verify the watchdog device is present (/dev/watchdog) and the service is running.",
+            "Verify both probes are functioning correctly in the VMI status."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Perform live migration with node affinity",
+      "solution": "# Solution for Task 12\n\n# 1. Label worker nodes for different tiers\nNODE1=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[0].metadata.name}')\nNODE2=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[1].metadata.name}')\n\noc label node $NODE1 tier=production --overwrite\noc label node $NODE2 tier=development --overwrite\n\n# 2. Configure node affinity for production VM\noc patch vm app-server-01 -n appserver-prod-ns --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/affinity\", \"value\": {\"nodeAffinity\": {\"requiredDuringSchedulingIgnoredDuringExecution\": {\"nodeSelectorTerms\": [{\"matchExpressions\": [{\"key\": \"tier\", \"operator\": \"In\", \"values\": [\"production\"]}]}]}}}}]'\n\n# 3. Configure node affinity for development VM\noc patch vm app-server-dev -n appserver-prod-ns --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/affinity\", \"value\": {\"nodeAffinity\": {\"requiredDuringSchedulingIgnoredDuringExecution\": {\"nodeSelectorTerms\": [{\"matchExpressions\": [{\"key\": \"tier\", \"operator\": \"In\", \"values\": [\"development\"]}]}]}}}}]'\n\n# 4. Restart VMs to apply affinity\noc virt restart app-server-01 -n appserver-prod-ns\noc virt restart app-server-dev -n appserver-prod-ns\n\n# 5. Wait for VMs to be ready\noc wait --for=condition=Ready vmi/app-server-01 -n appserver-prod-ns --timeout=300s\noc wait --for=condition=Ready vmi/app-server-dev -n appserver-prod-ns --timeout=300s\n\n# 6. Verify VMs are on correct nodes\noc get vmi app-server-01 -n appserver-prod-ns -o jsonpath='{.status.nodeName}'\noc get vmi app-server-dev -n appserver-prod-ns -o jsonpath='{.status.nodeName}'\n\n# 7. Perform live migration of production VM\noc virt migrate app-server-01 -n appserver-prod-ns\n\n# 8. Monitor migration\noc get vmim -n appserver-prod-ns -w\n\n# 9. Verify migration completed and VM is still on a production-tier node\noc get vmi app-server-01 -n appserver-prod-ns -o jsonpath='{.status.nodeName}'\noc get node $(oc get vmi app-server-01 -n appserver-prod-ns -o jsonpath='{.status.nodeName}') --show-labels | grep tier=production",
+      "sections": [
+        {
+          "title": "Live Migration with Node Affinity Rules",
+          "notice": "Configure node affinity to ensure production and development VMs run on appropriately labeled nodes. Then perform a live migration of the production VM. Work in the 'appserver-prod-ns' namespace.",
+          "subtasks": [
+            "Label two worker nodes: one with 'tier=production' and another with 'tier=development'.",
+            "Configure node affinity for 'app-server-01' VM to prefer nodes with label 'tier=production'.",
+            "Configure node affinity for 'app-server-dev' VM to prefer nodes with label 'tier=development'.",
+            "Restart both VMs to apply the affinity rules.",
+            "Verify 'app-server-01' is running on a node labeled 'tier=production'.",
+            "Verify 'app-server-dev' is running on a node labeled 'tier=development'.",
+            "Initiate a live migration for 'app-server-01' VM.",
+            "Monitor the migration progress using VirtualMachineInstanceMigration resources.",
+            "Verify the migration completes successfully and the VM remains on a production-tier node.",
+            "Confirm there was no downtime during the migration."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task13",
+      "title": "Prepare node for maintenance with proper draining",
+      "solution": "# Solution for Task 13\n\n# 1. Select a worker node running VMs\nNODE_TO_MAINTAIN=$(oc get vmi -A -o jsonpath='{.items[0].status.nodeName}')\necho \"Node to maintain: $NODE_TO_MAINTAIN\"\n\n# 2. Check VMs on the node\noc get vmi -A -o wide | grep $NODE_TO_MAINTAIN\n\n# 3. Cordon the node to prevent new pods\noc adm cordon $NODE_TO_MAINTAIN\n\n# 4. Verify node is marked as unschedulable\noc get node $NODE_TO_MAINTAIN | grep SchedulingDisabled\n\n# 5. Create NodeMaintenance resource\ncat <<EOF | oc apply -f -\napiVersion: nodemaintenance.kubevirt.io/v1beta1\nkind: NodeMaintenance\nmetadata:\n  name: maintenance-${NODE_TO_MAINTAIN}\nspec:\n  nodeName: ${NODE_TO_MAINTAIN}\n  reason: \"Scheduled maintenance for hardware upgrade\"\nEOF\n\n# 6. Monitor node maintenance status\noc get nodemaintenance maintenance-${NODE_TO_MAINTAIN} -w\n\n# 7. Verify all VMs have been migrated away\noc get vmi -A -o wide | grep $NODE_TO_MAINTAIN\n\n# 8. Check node is ready for maintenance\noc get node $NODE_TO_MAINTAIN -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}'\n\n# 9. After maintenance, remove NodeMaintenance\noc delete nodemaintenance maintenance-${NODE_TO_MAINTAIN}\n\n# 10. Uncordon the node\noc adm uncordon $NODE_TO_MAINTAIN\n\n# 11. Verify node is schedulable again\noc get node $NODE_TO_MAINTAIN",
+      "sections": [
+        {
+          "title": "Node Maintenance with VM Migration",
+          "notice": "Prepare a worker node for scheduled maintenance. Safely evacuate all VMs from the node without causing downtime. Use NodeMaintenance custom resource for proper VM migration.",
+          "subtasks": [
+            "Identify a worker node that is currently running at least one VM.",
+            "Cordon the node to prevent new pods from being scheduled.",
+            "Verify the node shows 'SchedulingDisabled' status.",
+            "Create a NodeMaintenance custom resource for the selected node with reason 'Scheduled maintenance for hardware upgrade'.",
+            "Monitor the NodeMaintenance resource until it shows the node is ready for maintenance.",
+            "Verify all VMs have been live-migrated away from the node.",
+            "Confirm no VMIs are running on the node.",
+            "After simulated maintenance, delete the NodeMaintenance resource.",
+            "Uncordon the node to make it schedulable again.",
+            "Verify the node returns to 'Ready' and schedulable status."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task14",
+      "title": "Expose application with Route and custom service configuration",
+      "solution": "# Solution for Task 14\n\n# 1. Create Service for app-server-dev\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: v1\nkind: Service\nmetadata:\n  name: app-dev-svc\nspec:\n  selector:\n    kubevirt.io/domain: app-server-dev\n  ports:\n  - name: http\n    port: 8080\n    targetPort: 80\n    protocol: TCP\n  - name: https\n    port: 8443\n    targetPort: 443\n    protocol: TCP\n  type: ClusterIP\n  sessionAffinity: ClientIP\n  sessionAffinityConfig:\n    clientIP:\n      timeoutSeconds: 10800\nEOF\n\n# 2. Create edge-terminated Route\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: route.openshift.io/v1\nkind: Route\nmetadata:\n  name: app-dev-route\nspec:\n  to:\n    kind: Service\n    name: app-dev-svc\n    weight: 100\n  port:\n    targetPort: http\n  tls:\n    termination: edge\n    insecureEdgeTerminationPolicy: Redirect\n  wildcardPolicy: None\nEOF\n\n# 3. Get the Route URL\nROUTE_URL=$(oc get route app-dev-route -n appserver-prod-ns -o jsonpath='{.spec.host}')\necho \"Application accessible at: https://$ROUTE_URL\"\n\n# 4. Test the route\ncurl -I -k https://$ROUTE_URL\n\n# 5. Create passthrough Route for HTTPS traffic\ncat <<EOF | oc apply -n appserver-prod-ns -f -\napiVersion: route.openshift.io/v1\nkind: Route\nmetadata:\n  name: app-dev-route-passthrough\nspec:\n  to:\n    kind: Service\n    name: app-dev-svc\n    weight: 100\n  port:\n    targetPort: https\n  tls:\n    termination: passthrough\n  wildcardPolicy: None\nEOF\n\n# 6. Verify both routes\noc get routes -n appserver-prod-ns",
+      "sections": [
+        {
+          "title": "Advanced Route Configuration",
+          "notice": "Expose the 'app-server-dev' application externally using OpenShift Routes. Create both edge-terminated and passthrough routes with custom service configuration. Work in the 'appserver-prod-ns' namespace. For verification, you can use a test container image: quay.io/openshift/origin-hello-openshift:latest",
+          "subtasks": [
+            "Create a Service named 'app-dev-svc' that selects the 'app-server-dev' VM.",
+            "Configure the service with two ports: 8080 targeting port 80 (HTTP) and 8443 targeting port 443 (HTTPS).",
+            "Enable session affinity with ClientIP and set timeout to 10800 seconds (3 hours).",
+            "Create an edge-terminated Route named 'app-dev-route' that terminates TLS at the router.",
+            "Configure the edge route to redirect insecure HTTP traffic to HTTPS.",
+            "Create a passthrough Route named 'app-dev-route-passthrough' for HTTPS traffic that passes TLS through to the application.",
+            "Verify both routes are created and accessible.",
+            "Test HTTP to HTTPS redirection on the edge route.",
+            "Document both route URLs for application access."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task15",
+      "title": "Configure VM load balancing and eviction strategies",
+      "solution": "# Solution for Task 15\n\n# 1. Create namespace for load-balanced application\noc create namespace webapp-cluster-ns\n\n# 2. Create multiple web server VMs with anti-affinity\nfor i in 1 2 3; do\ncat <<EOF | oc apply -n webapp-cluster-ns -f -\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: web-vm-0${i}\n  labels:\n    app: webapp-cluster\n    tier: frontend\nspec:\n  runStrategy: Always\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: web-vm-0${i}\n        app: webapp-cluster\n    spec:\n      affinity:\n        podAntiAffinity:\n          preferredDuringSchedulingIgnoredDuringExecution:\n          - weight: 100\n            podAffinityTerm:\n              labelSelector:\n                matchLabels:\n                  app: webapp-cluster\n              topologyKey: kubernetes.io/hostname\n      evictionStrategy: LiveMigrate\n      domain:\n        cpu:\n          cores: 2\n        memory:\n          guest: 2Gi\n        devices:\n          disks:\n          - name: rootdisk\n            disk:\n              bus: virtio\n          - name: cloudinitdisk\n            disk:\n              bus: virtio\n          interfaces:\n          - name: default\n            masquerade: {}\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.2\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            yum_repos:\n              custom-rhel9:\n                name: Custom RHEL9 Repository\n                baseurl: http://mirror.example.local/rhel9/BaseOS\n                enabled: true\n                gpgcheck: false\n            packages:\n              - httpd\n            runcmd:\n              - systemctl enable httpd\n              - systemctl start httpd\n              - echo \"Web Server 0${i} - Hostname: \\$(hostname)\" > /var/www/html/index.html\nEOF\ndone\n\n# 3. Wait for all VMs to be ready\nfor i in 1 2 3; do\n  oc wait --for=condition=Ready vmi/web-vm-0${i} -n webapp-cluster-ns --timeout=600s\ndone\n\n# 4. Create ClusterIP service for load balancing\ncat <<EOF | oc apply -n webapp-cluster-ns -f -\napiVersion: v1\nkind: Service\nmetadata:\n  name: webapp-lb-svc\nspec:\n  selector:\n    app: webapp-cluster\n  ports:\n  - name: http\n    port: 80\n    targetPort: 80\n    protocol: TCP\n  type: ClusterIP\nEOF\n\n# 5. Create Route for external access\noc create route edge webapp-cluster-route --service=webapp-lb-svc -n webapp-cluster-ns\n\n# 6. Verify load balancing\nROUTE_URL=$(oc get route webapp-cluster-route -n webapp-cluster-ns -o jsonpath='{.spec.host}')\nfor i in {1..9}; do\n  curl -k https://$ROUTE_URL\ndone\n\n# 7. Test eviction strategy by cordoning a node\nNODE_WITH_VM=$(oc get vmi web-vm-01 -n webapp-cluster-ns -o jsonpath='{.status.nodeName}')\noc adm cordon $NODE_WITH_VM\noc adm drain $NODE_WITH_VM --ignore-daemonsets --delete-emptydir-data --pod-selector=kubevirt.io/domain=web-vm-01\n\n# 8. Verify VM was live-migrated\noc get vmi web-vm-01 -n webapp-cluster-ns -o jsonpath='{.status.nodeName}'\noc get vmim -n webapp-cluster-ns\n\n# 9. Uncordon the node\noc adm uncordon $NODE_WITH_VM\n\n# 10. Verify service continues to function\ncurl -k https://$ROUTE_URL",
+      "sections": [
+        {
+          "title": "VM Load Balancing and High Availability",
+          "notice": "Deploy a cluster of three web server VMs with load balancing and high availability features. Configure anti-affinity to spread VMs across nodes, set eviction strategy for automatic live migration, and expose via a load-balanced service. Work in a new namespace 'webapp-cluster-ns'. Custom repository: URL='http://mirror.example.local/rhel9/BaseOS', Name='custom-rhel9'. For route verification, test with: quay.io/openshift/origin-hello-openshift:latest",
+          "subtasks": [
+            "Create a new namespace named 'webapp-cluster-ns'.",
+            "Deploy three VMs named 'web-vm-01', 'web-vm-02', and 'web-vm-03' with identical configurations.",
+            "Each VM should have 2 CPU cores and 2Gi memory.",
+            "Use cloud-init with the custom repository to install httpd package.",
+            "Configure each VM to display its hostname in /var/www/html/index.html.",
+            "Set the run strategy to 'Always' for automatic restart on failure.",
+            "Configure pod anti-affinity to prefer spreading VMs across different nodes.",
+            "Set eviction strategy to 'LiveMigrate' to enable automatic migration during node maintenance.",
+            "Create a ClusterIP Service named 'webapp-lb-svc' that load balances across all three VMs using label selector 'app=webapp-cluster'.",
+            "Create an edge-terminated Route named 'webapp-cluster-route' to expose the service externally.",
+            "Test load balancing by making multiple requests and verifying different VM responses.",
+            "Test the eviction strategy by cordoning and draining a node hosting one of the VMs.",
+            "Verify the VM automatically live-migrates to another node without downtime.",
+            "Confirm the service continues to function during and after the migration.",
+            "Uncordon the node after testing."
+          ]
+        }
+      ]
+    }
+  ]
+}
