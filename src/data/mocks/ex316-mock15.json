@@ -1,0 +1,341 @@
+{
+  "examId": "ex316-15",
+  "title": "OpenShift Virtualization Specialist (EX316) — Mock 15: Advanced Mock Exam",
+  "description": "An advanced 15-task exam covering RBAC, OADP with ODF backend, MetalLB configuration, complex storage operations, cloud-init with custom repositories, and production-like scenarios for OpenShift Virtualization 4.16.",
+  "timeLimit": "4h",
+  "prerequisites": "# Prerequisites Setup Script for Advanced Mock Exam\n# Run this script before starting the exam to set up the base environment\n\necho \"Setting up advanced mock exam environment...\"\n\n# Ensure OADP operator is installed with ODF backend\necho \"Verifying OADP operator with ODF backend...\"\n# oc get csv -n openshift-adp | grep oadp\n\n# Ensure MetalLB operator is installed (for OpenShift 4.16)\necho \"Verifying MetalLB operator...\"\n# oc get csv -n metallb-system | grep metallb\n\n# Custom repository configuration for candidates\necho \"Custom repository details for package installations:\"\necho \"Repository URL: http://custom-repo.ocp.local/rhel9/baseos\"\necho \"Repository Name: custom-rhel9-repo\"\necho \"GPG Check: disabled for exam purposes\"\n\n# Ensure default storage class is available\noc get storageclass\n\n# Ensure RHEL9 VM template exists\noc get templates -n openshift | grep rhel9\n\necho \"Environment setup complete. Begin the exam.\"\n",
+  "tasks": [
+    {
+      "id": "task01",
+      "title": "Deploy MetalLB and configure IP address pool",
+      "solution": "# 1. Create namespace for MetalLB resources\noc create namespace metallb-config-ns\n\n# 2. Create MetalLB instance\noc create -f - <<EOF\napiVersion: metallb.io/v1beta1\nkind: MetalLB\nmetadata:\n  name: metallb\n  namespace: metallb-system\nspec:\n  nodeSelector:\n    node-role.kubernetes.io/worker: \"\"\nEOF\n\n# 3. Create IPAddressPool\noc create -f - -n metallb-system <<EOF\napiVersion: metallb.io/v1beta1\nkind: IPAddressPool\nmetadata:\n  name: vm-pool\n  namespace: metallb-system\nspec:\n  addresses:\n  - 192.168.100.200-192.168.100.220\n  autoAssign: true\nEOF\n\n# 4. Create L2Advertisement\noc create -f - -n metallb-system <<EOF\napiVersion: metallb.io/v1beta1\nkind: L2Advertisement\nmetadata:\n  name: vm-l2-adv\n  namespace: metallb-system\nspec:\n  ipAddressPools:\n  - vm-pool\nEOF\n\n# 5. Verify\noc get ipaddresspool -n metallb-system\noc get l2advertisement -n metallb-system",
+      "sections": [
+        {
+          "title": "MetalLB Installation and Configuration",
+          "notice": "Configure MetalLB for OpenShift Virtualization 4.16 to provide external IP addresses for VM services. Create all resources in the 'metallb-system' namespace unless otherwise specified.",
+          "subtasks": [
+            "Create a namespace named 'metallb-config-ns' for organizational purposes.",
+            "Deploy a MetalLB instance in the 'metallb-system' namespace with worker node selector.",
+            "Create an IPAddressPool named 'vm-pool' with the address range 192.168.100.200-192.168.100.220.",
+            "Create an L2Advertisement named 'vm-l2-adv' that references the 'vm-pool'.",
+            "Verify that both resources are created and in Ready state."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task02",
+      "title": "Deploy enterprise application server with cloud-init and custom repository",
+      "solution": "# 1. Create namespace\noc create namespace enterprise-app-ns\n\n# 2. Create VM with cloud-init configuration\noc create -f - -n enterprise-app-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: app-server\n  labels:\n    app: enterprise\n    tier: backend\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: app-server\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n              name: containerdisk\n          - disk:\n              bus: virtio\n              name: cloudinitdisk\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 2Gi\n            cpu: 2\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.3\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            user: admin\n            password: redhat123\n            chpasswd: { expire: False }\n            ssh_pwauth: True\n            yum_repos:\n              custom-rhel9-repo:\n                name: Custom RHEL9 Repository\n                baseurl: http://custom-repo.ocp.local/rhel9/baseos\n                enabled: true\n                gpgcheck: false\n            packages:\n              - nginx\n              - postgresql\n              - python3\n            runcmd:\n              - systemctl enable --now nginx\n              - systemctl enable --now postgresql\n              - firewall-cmd --permanent --add-service=http\n              - firewall-cmd --permanent --add-service=postgresql\n              - firewall-cmd --reload\nEOF\n\n# 3. Wait for VM to be ready\noc wait --for=condition=Ready vmi/app-server -n enterprise-app-ns --timeout=600s\n\n# 4. Verify services\nvirtctl console app-server -n enterprise-app-ns\n# Inside VM:\n# systemctl status nginx\n# systemctl status postgresql",
+      "sections": [
+        {
+          "title": "Cloud-init VM Deployment with Custom Repository",
+          "notice": "Deploy an enterprise application server using cloud-init. All package installations MUST use the custom repository provided. Repository details: URL=http://custom-repo.ocp.local/rhel9/baseos, Name=custom-rhel9-repo, GPGCheck=disabled. Perform all actions in namespace 'enterprise-app-ns'.",
+          "subtasks": [
+            "Create a new namespace named 'enterprise-app-ns'.",
+            "Create a VirtualMachine named 'app-server' using RHEL 9.3 container disk image from quay.io/containerdisks/rhel:9.3.",
+            "Configure cloud-init to add the custom repository with the provided details.",
+            "Use cloud-init to install packages: nginx, postgresql, and python3 from the custom repository.",
+            "Configure cloud-init to enable and start nginx and postgresql services at boot.",
+            "Configure firewall rules to allow http and postgresql services.",
+            "Verify all services are running after VM boots."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task03",
+      "title": "Configure advanced RBAC for VM operations",
+      "solution": "# 1. Create service accounts and users\noc create serviceaccount vm-operator -n enterprise-app-ns\noc create serviceaccount vm-viewer -n enterprise-app-ns\n\n# 2. Create custom roles\noc create -f - <<EOF\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: vm-full-operator\n  namespace: enterprise-app-ns\nrules:\n- apiGroups: [\"kubevirt.io\"]\n  resources: [\"virtualmachines\", \"virtualmachineinstances\"]\n  verbs: [\"get\", \"list\", \"watch\", \"create\", \"update\", \"patch\", \"delete\"]\n- apiGroups: [\"kubevirt.io\"]\n  resources: [\"virtualmachines/start\", \"virtualmachines/stop\", \"virtualmachines/restart\"]\n  verbs: [\"update\"]\n- apiGroups: [\"subresources.kubevirt.io\"]\n  resources: [\"virtualmachines/start\", \"virtualmachines/stop\", \"virtualmachines/restart\"]\n  verbs: [\"update\"]\n- apiGroups: [\"snapshot.kubevirt.io\"]\n  resources: [\"virtualmachinesnapshots\", \"virtualmachinerestores\"]\n  verbs: [\"get\", \"list\", \"create\"]\nEOF\n\noc create -f - <<EOF\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: vm-readonly-viewer\n  namespace: enterprise-app-ns\nrules:\n- apiGroups: [\"kubevirt.io\"]\n  resources: [\"virtualmachines\", \"virtualmachineinstances\"]\n  verbs: [\"get\", \"list\", \"watch\"]\n- apiGroups: [\"\"]\n  resources: [\"pods\", \"services\"]\n  verbs: [\"get\", \"list\"]\nEOF\n\n# 3. Create role bindings\noc create rolebinding vm-operator-binding --role=vm-full-operator --serviceaccount=enterprise-app-ns:vm-operator -n enterprise-app-ns\noc create rolebinding vm-viewer-binding --role=vm-readonly-viewer --serviceaccount=enterprise-app-ns:vm-viewer -n enterprise-app-ns\n\n# 4. Verify permissions\noc auth can-i create virtualmachines --as=system:serviceaccount:enterprise-app-ns:vm-operator -n enterprise-app-ns\noc auth can-i delete virtualmachines --as=system:serviceaccount:enterprise-app-ns:vm-viewer -n enterprise-app-ns",
+      "sections": [
+        {
+          "title": "Fine-grained RBAC Configuration",
+          "notice": "Configure role-based access control for VM operations in namespace 'enterprise-app-ns'. Create granular permissions for different user roles.",
+          "subtasks": [
+            "Create two service accounts: 'vm-operator' and 'vm-viewer' in namespace 'enterprise-app-ns'.",
+            "Create a Role named 'vm-full-operator' that allows full CRUD operations on VirtualMachines and VirtualMachineInstances.",
+            "The 'vm-full-operator' role must also allow start, stop, and restart operations on VMs.",
+            "The 'vm-full-operator' role must allow creating snapshots and restores.",
+            "Create a Role named 'vm-readonly-viewer' that only allows get, list, and watch on VMs, VMIs, pods, and services.",
+            "Create RoleBindings to bind 'vm-operator' service account to 'vm-full-operator' role.",
+            "Create RoleBindings to bind 'vm-viewer' service account to 'vm-readonly-viewer' role.",
+            "Verify that vm-operator can create VMs and vm-viewer cannot delete VMs."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task04",
+      "title": "Configure complex storage with multiple disk operations",
+      "solution": "# 1. Create storage namespace\noc create namespace storage-ops-ns\n\n# 2. Create multiple PVCs\noc create -f - -n storage-ops-ns <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: data-disk-01\nspec:\n  accessModes:\n    - ReadWriteOnce\n  volumeMode: Filesystem\n  resources:\n    requests:\n      storage: 30Gi\n---\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: data-disk-02\nspec:\n  accessModes:\n    - ReadWriteOnce\n  volumeMode: Block\n  resources:\n    requests:\n      storage: 50Gi\n---\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: backup-disk\nspec:\n  accessModes:\n    - ReadWriteOnce\n  volumeMode: Filesystem\n  resources:\n    requests:\n      storage: 100Gi\nEOF\n\n# 3. Create VM with initial disk\noc create -f - -n storage-ops-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: storage-test-vm\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: storage-test-vm\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: data-disk-01\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.3\n      - name: data-disk-01\n        persistentVolumeClaim:\n          claimName: data-disk-01\nEOF\n\n# 4. Wait for VM\noc wait --for=condition=Ready vmi/storage-test-vm -n storage-ops-ns --timeout=300s\n\n# 5. Attach additional block disk (hot-plug)\noc patch vm storage-test-vm -n storage-ops-ns --type=json -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/disks/-\", \"value\": {\"name\": \"data-disk-02\", \"disk\": {\"bus\": \"virtio\"}}}, {\"op\": \"add\", \"path\": \"/spec/template/spec/volumes/-\", \"value\": {\"name\": \"data-disk-02\", \"persistentVolumeClaim\": {\"claimName\": \"data-disk-02\"}}}]'\n\n# 6. Format and mount inside VM\nvirtctl console storage-test-vm -n storage-ops-ns\n# lsblk\n# sudo mkfs.xfs /dev/vdb\n# sudo mkdir /mnt/data01\n# sudo mount /dev/vdb /mnt/data01\n# echo '/dev/vdb /mnt/data01 xfs defaults 0 0' | sudo tee -a /etc/fstab",
+      "sections": [
+        {
+          "title": "Advanced Disk Operations",
+          "notice": "Perform complex storage operations including creating multiple PVCs with different modes, attaching disks to running VMs, and configuring filesystems. Work in namespace 'storage-ops-ns'.",
+          "subtasks": [
+            "Create a new namespace named 'storage-ops-ns'.",
+            "Create three PVCs: 'data-disk-01' (30Gi, Filesystem mode), 'data-disk-02' (50Gi, Block mode), and 'backup-disk' (100Gi, Filesystem mode).",
+            "Create a VM named 'storage-test-vm' with 'data-disk-01' attached at creation time.",
+            "Wait for the VM to be running.",
+            "Hot-plug 'data-disk-02' to the running VM without shutting it down.",
+            "Log into the VM and format 'data-disk-02' with XFS filesystem.",
+            "Mount the formatted disk at /mnt/data01 and configure it to mount at boot via /etc/fstab.",
+            "Verify the disk is mounted and persistent across reboots."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task05",
+      "title": "Setup OADP backup with ODF backend and perform VM backup",
+      "solution": "# 1. Create namespace for backup operations\noc create namespace backup-ops-ns\n\n# 2. Verify OADP is configured with ODF\noc get dataprotectionapplication -n openshift-adp\n\n# 3. Create backup location if not exists\noc create -f - -n openshift-adp <<EOF\napiVersion: oadp.openshift.io/v1alpha1\nkind: DataProtectionApplication\nmetadata:\n  name: oadp-instance\nspec:\n  backupLocations:\n    - velero:\n        provider: aws\n        default: true\n        objectStorage:\n          bucket: oadp-backup-bucket\n          prefix: virtualization\n        config:\n          region: noobaa\n          s3ForcePathStyle: \"true\"\n          s3Url: https://s3.openshift-storage.svc\n        credential:\n          name: cloud-credentials\n          key: cloud\n  configuration:\n    velero:\n      defaultPlugins:\n        - openshift\n        - aws\n        - kubevirt\n    restic:\n      enable: false\n  snapshotLocations:\n    - velero:\n        provider: aws\n        config:\n          region: noobaa\nEOF\n\n# 4. Create test VM in backup namespace\noc create -f - -n backup-ops-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: backup-test-vm\n  labels:\n    app: critical\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: datadisk\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.3\n      - name: datadisk\n        persistentVolumeClaim:\n          claimName: backup-vm-data\n---\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: backup-vm-data\nspec:\n  accessModes:\n    - ReadWriteOnce\n  resources:\n    requests:\n      storage: 20Gi\nEOF\n\n# 5. Create backup\noc create -f - <<EOF\napiVersion: velero.io/v1\nkind: Backup\nmetadata:\n  name: vm-backup-full\n  namespace: openshift-adp\nspec:\n  includedNamespaces:\n    - backup-ops-ns\n  includedResources:\n    - virtualmachines\n    - virtualmachineinstances\n    - persistentvolumeclaims\n    - persistentvolumes\n  labelSelector:\n    matchLabels:\n      app: critical\n  snapshotVolumes: true\n  ttl: 720h0m0s\n  storageLocation: default\nEOF\n\n# 6. Monitor backup\noc get backup vm-backup-full -n openshift-adp -w",
+      "sections": [
+        {
+          "title": "OADP Backup Configuration with ODF",
+          "notice": "Configure and execute a complete VM backup using OADP with OpenShift Data Foundation (ODF) as the storage backend. Perform operations in namespace 'backup-ops-ns' and openshift-adp.",
+          "subtasks": [
+            "Create a namespace named 'backup-ops-ns'.",
+            "Verify OADP operator is installed and configured with ODF backend (NooBaa S3).",
+            "Configure DataProtectionApplication with ODF/NooBaa as backup location using bucket 'oadp-backup-bucket'.",
+            "Enable kubevirt plugin for OADP to support VM backups.",
+            "Create a test VM named 'backup-test-vm' with a 20Gi PVC attached and label it with 'app=critical'.",
+            "Create a Backup resource named 'vm-backup-full' that targets namespace 'backup-ops-ns' and selects VMs with label 'app=critical'.",
+            "Enable volume snapshots in the backup configuration.",
+            "Monitor and verify the backup completes successfully.",
+            "Verify backup data is stored in ODF backend."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task06",
+      "title": "Restore VM from OADP backup and verify data integrity",
+      "solution": "# 1. Delete the original VM to simulate disaster\noc delete vm backup-test-vm -n backup-ops-ns\noc delete pvc backup-vm-data -n backup-ops-ns\n\n# 2. Wait for deletion\noc wait --for=delete vm/backup-test-vm -n backup-ops-ns --timeout=120s\n\n# 3. Create restore\noc create -f - <<EOF\napiVersion: velero.io/v1\nkind: Restore\nmetadata:\n  name: vm-restore-full\n  namespace: openshift-adp\nspec:\n  backupName: vm-backup-full\n  includedNamespaces:\n    - backup-ops-ns\n  restorePVs: true\n  preserveNodePorts: false\nEOF\n\n# 4. Monitor restore\noc get restore vm-restore-full -n openshift-adp -w\n\n# 5. Verify VM is restored and running\noc get vm backup-test-vm -n backup-ops-ns\noc wait --for=condition=Ready vmi/backup-test-vm -n backup-ops-ns --timeout=600s\n\n# 6. Verify data integrity\nvirtctl console backup-test-vm -n backup-ops-ns\n# Check if data persisted on /dev/vdb",
+      "sections": [
+        {
+          "title": "OADP Restore Operations",
+          "notice": "Perform a disaster recovery scenario by restoring a VM from OADP backup. Work in namespace 'backup-ops-ns'.",
+          "subtasks": [
+            "Simulate a disaster by deleting the 'backup-test-vm' and its associated PVC 'backup-vm-data'.",
+            "Wait for complete deletion of VM and PVC resources.",
+            "Create a Restore resource named 'vm-restore-full' to restore from backup 'vm-backup-full'.",
+            "Ensure PV restoration is enabled in the restore configuration.",
+            "Monitor the restore operation until completion.",
+            "Verify the VM 'backup-test-vm' is restored and reaches Running state.",
+            "Log into the restored VM and verify that data on the attached disk is intact.",
+            "Confirm the PVC is also restored with correct capacity."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task07",
+      "title": "Configure VM with LoadBalancer service using MetalLB",
+      "solution": "# 1. Create namespace\noc create namespace loadbalancer-ns\n\n# 2. Create VM with web server\noc create -f - -n loadbalancer-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: web-lb-vm\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: web-lb-vm\n        app: web-loadbalancer\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: cloudinitdisk\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.3\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            yum_repos:\n              custom-rhel9-repo:\n                name: Custom RHEL9 Repository\n                baseurl: http://custom-repo.ocp.local/rhel9/baseos\n                enabled: true\n                gpgcheck: false\n            packages:\n              - httpd\n            runcmd:\n              - systemctl enable --now httpd\n              - echo '<h1>MetalLB LoadBalancer Test</h1>' > /var/www/html/index.html\n              - firewall-cmd --permanent --add-service=http\n              - firewall-cmd --reload\nEOF\n\n# 3. Wait for VM\noc wait --for=condition=Ready vmi/web-lb-vm -n loadbalancer-ns --timeout=300s\n\n# 4. Create LoadBalancer service\noc create -f - -n loadbalancer-ns <<EOF\napiVersion: v1\nkind: Service\nmetadata:\n  name: web-lb-service\nspec:\n  type: LoadBalancer\n  selector:\n    kubevirt.io/domain: web-lb-vm\n  ports:\n  - name: http\n    port: 80\n    targetPort: 80\n    protocol: TCP\n  loadBalancerIP: 192.168.100.200\nEOF\n\n# 5. Verify external IP assigned\noc get svc web-lb-service -n loadbalancer-ns\n\n# 6. Test access\ncurl http://192.168.100.200",
+      "sections": [
+        {
+          "title": "LoadBalancer Service with MetalLB",
+          "notice": "Configure a VM with LoadBalancer service using MetalLB to provide external access. Use custom repository for package installation. Repository: http://custom-repo.ocp.local/rhel9/baseos. Work in namespace 'loadbalancer-ns'. To verify the route is working, you can use a container with curl: 'oc run test-curl --image=curlimages/curl:latest --rm -it -- curl http://192.168.100.200'",
+          "subtasks": [
+            "Create a namespace named 'loadbalancer-ns'.",
+            "Create a VM named 'web-lb-vm' using RHEL 9.3 container disk.",
+            "Configure cloud-init to install httpd from the custom repository.",
+            "Configure cloud-init to create a test HTML page displaying 'MetalLB LoadBalancer Test'.",
+            "Enable and start httpd service via cloud-init.",
+            "Create a LoadBalancer type service named 'web-lb-service' that exposes port 80.",
+            "Request specific IP address 192.168.100.200 from MetalLB pool.",
+            "Verify MetalLB assigns the external IP successfully.",
+            "Test access to the web server via the LoadBalancer IP."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task08",
+      "title": "Configure Multus with NMstate for multi-homed VM connectivity",
+      "solution": "# 1. Create namespace\noc create namespace multus-network-ns\n\n# 2. Verify NMstate operator is installed\noc get csv -n openshift-nmstate | grep nmstate\n\n# 3. Create NodeNetworkConfigurationPolicy for bridge on worker nodes\noc create -f - <<EOF\napiVersion: nmstate.io/v1\nkind: NodeNetworkConfigurationPolicy\nmetadata:\n  name: management-bridge-policy\nspec:\n  nodeSelector:\n    node-role.kubernetes.io/worker: \"\"\n  desiredState:\n    interfaces:\n    - name: mgmt-br0\n      type: linux-bridge\n      state: up\n      ipv4:\n        enabled: false\n      bridge:\n        options:\n          stp:\n            enabled: false\n        port:\n        - name: eth1\n          vlan:\n            tag: 200\n---\napiVersion: nmstate.io/v1\nkind: NodeNetworkConfigurationPolicy\nmetadata:\n  name: storage-bridge-policy\nspec:\n  nodeSelector:\n    node-role.kubernetes.io/worker: \"\"\n  desiredState:\n    interfaces:\n    - name: storage-br0\n      type: linux-bridge\n      state: up\n      ipv4:\n        enabled: false\n      bridge:\n        options:\n          stp:\n            enabled: false\n        port:\n        - name: eth2\n          vlan:\n            tag: 300\nEOF\n\n# 4. Wait for NMstate configuration to be applied\noc wait --for=condition=Available nncp/management-bridge-policy --timeout=300s\noc wait --for=condition=Available nncp/storage-bridge-policy --timeout=300s\n\n# 5. Create NetworkAttachmentDefinition for management network\noc create -f - -n multus-network-ns <<EOF\napiVersion: k8s.cni.cncf.io/v1\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: management-network\nspec:\n  config: |\n    {\n      \"cniVersion\": \"0.3.1\",\n      \"name\": \"management-network\",\n      \"type\": \"cnv-bridge\",\n      \"bridge\": \"mgmt-br0\",\n      \"macspoofchk\": true,\n      \"ipam\": {\n        \"type\": \"static\",\n        \"addresses\": [\n          {\n            \"address\": \"10.10.200.0/24\"\n          }\n        ]\n      }\n    }\nEOF\n\n# 6. Create NetworkAttachmentDefinition for storage network\noc create -f - -n multus-network-ns <<EOF\napiVersion: k8s.cni.cncf.io/v1\nkind: NetworkAttachmentDefinition\nmetadata:\n  name: storage-network\nspec:\n  config: |\n    {\n      \"cniVersion\": \"0.3.1\",\n      \"name\": \"storage-network\",\n      \"type\": \"cnv-bridge\",\n      \"bridge\": \"storage-br0\",\n      \"macspoofchk\": true,\n      \"ipam\": {\n        \"type\": \"static\",\n        \"addresses\": [\n          {\n            \"address\": \"10.10.300.0/24\"\n          }\n        ]\n      }\n    }\nEOF\n\n# 7. Verify NADs are created\noc get network-attachment-definitions -n multus-network-ns\n\n# 8. Create multi-homed VM with static IP configuration\noc create -f - -n multus-network-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: multi-nic-vm\n  labels:\n    app: multi-network\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: multi-nic-vm\n        app: multi-network\n      annotations:\n        k8s.v1.cni.cncf.io/networks: |\n          [\n            {\n              \"name\": \"management-network\",\n              \"namespace\": \"multus-network-ns\",\n              \"interface\": \"mgmt0\",\n              \"ips\": [\"10.10.200.50/24\"]\n            },\n            {\n              \"name\": \"storage-network\",\n              \"namespace\": \"multus-network-ns\",\n              \"interface\": \"storage0\",\n              \"ips\": [\"10.10.300.50/24\"]\n            }\n          ]\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: cloudinitdisk\n          interfaces:\n          - name: default\n            masquerade: {}\n          - name: management\n            bridge: {}\n          - name: storage\n            bridge: {}\n        resources:\n          requests:\n            memory: 2Gi\n            cpu: 2\n      networks:\n      - name: default\n        pod: {}\n      - name: management\n        multus:\n          networkName: management-network\n      - name: storage\n        multus:\n          networkName: storage-network\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.3\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          networkData: |\n            version: 2\n            ethernets:\n              eth1:\n                addresses:\n                - 10.10.200.50/24\n              eth2:\n                addresses:\n                - 10.10.300.50/24\nEOF\n\n# 9. Wait for VM to be ready\noc wait --for=condition=Ready vmi/multi-nic-vm -n multus-network-ns --timeout=600s\n\n# 10. Verify network interfaces inside VM\nvirtctl console multi-nic-vm -n multus-network-ns\n# Commands to run inside VM:\n# ip addr show\n# ip addr show eth1 | grep 10.10.200.50\n# ip addr show eth2 | grep 10.10.300.50\n# ping -c 3 10.10.200.1\n# ping -c 3 10.10.300.1",
+      "sections": [
+        {
+          "title": "Advanced Multi-Network Configuration with NMstate and Multus",
+          "notice": "Configure a multi-homed VM using NMstate operator to create bridge networks on nodes, then attach VM to multiple networks using Multus CNI. This simulates a production scenario with separated management and storage networks. Work in namespace 'multus-network-ns'.",
+          "subtasks": [
+            "Create a namespace named 'multus-network-ns'.",
+            "Verify the NMstate operator is installed and running in the cluster.",
+            "Create a NodeNetworkConfigurationPolicy named 'management-bridge-policy' to configure Linux bridge 'mgmt-br0' on worker nodes with VLAN 200.",
+            "Create a NodeNetworkConfigurationPolicy named 'storage-bridge-policy' to configure Linux bridge 'storage-br0' on worker nodes with VLAN 300.",
+            "Wait for both NMstate policies to be successfully applied (Available condition).",
+            "Create a NetworkAttachmentDefinition named 'management-network' in namespace 'multus-network-ns' that uses the 'mgmt-br0' bridge with subnet 10.10.200.0/24.",
+            "Create a NetworkAttachmentDefinition named 'storage-network' in namespace 'multus-network-ns' that uses the 'storage-br0' bridge with subnet 10.10.300.0/24.",
+            "Create a VM named 'multi-nic-vm' with three network interfaces: default pod network (masquerade), management network (bridge), and storage network (bridge).",
+            "Configure static IP addresses: 10.10.200.50/24 for management interface and 10.10.300.50/24 for storage interface.",
+            "Use cloud-init networkData to configure the static IPs inside the guest OS.",
+            "Allocate 2Gi memory and 2 CPUs to the VM.",
+            "Verify the VM reaches Ready state.",
+            "Log into the VM and verify three network interfaces exist (eth0, eth1, eth2) with correct IP addresses assigned."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task09",
+      "title": "Configure VM snapshots and perform snapshot operations",
+      "solution": "# 1. Create namespace\noc create namespace snapshot-ops-ns\n\n# 2. Create VM with data\noc create -f - -n snapshot-ops-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: snapshot-test-vm\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: datadisk\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.3\n      - name: datadisk\n        dataVolume:\n          name: snapshot-data-dv\n---\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: snapshot-data-dv\nspec:\n  source:\n    blank: {}\n  pvc:\n    accessModes:\n      - ReadWriteOnce\n    resources:\n      requests:\n        storage: 10Gi\nEOF\n\n# 3. Wait for VM and create test data\noc wait --for=condition=Ready vmi/snapshot-test-vm -n snapshot-ops-ns --timeout=300s\nvirtctl console snapshot-test-vm -n snapshot-ops-ns\n# mkfs.ext4 /dev/vdb\n# mkdir /data\n# mount /dev/vdb /data\n# echo 'Important data before snapshot' > /data/test.txt\n# exit\n\n# 4. Create snapshot\noc create -f - -n snapshot-ops-ns <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineSnapshot\nmetadata:\n  name: snapshot-test-vm-snap1\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: snapshot-test-vm\nEOF\n\n# 5. Wait for snapshot to be ready\noc wait --for=condition=Ready vmsnap/snapshot-test-vm-snap1 -n snapshot-ops-ns --timeout=300s\n\n# 6. Make changes to test restore\nvirtctl console snapshot-test-vm -n snapshot-ops-ns\n# echo 'Data after snapshot' > /data/test.txt\n# exit\n\n# 7. Restore from snapshot\noc create -f - -n snapshot-ops-ns <<EOF\napiVersion: snapshot.kubevirt.io/v1alpha1\nkind: VirtualMachineRestore\nmetadata:\n  name: snapshot-test-vm-restore1\nspec:\n  target:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: snapshot-test-vm\n  virtualMachineSnapshotName: snapshot-test-vm-snap1\nEOF\n\n# 8. Verify restore\noc wait --for=condition=Ready vmrestore/snapshot-test-vm-restore1 -n snapshot-ops-ns --timeout=300s\nvirtctl console snapshot-test-vm -n snapshot-ops-ns\n# cat /data/test.txt (should show 'Important data before snapshot')",
+      "sections": [
+        {
+          "title": "VM Snapshot Management",
+          "notice": "Create and manage VM snapshots to enable point-in-time recovery. Work in namespace 'snapshot-ops-ns'.",
+          "subtasks": [
+            "Create a namespace named 'snapshot-ops-ns'.",
+            "Create a VM named 'snapshot-test-vm' with a 10Gi DataVolume attached.",
+            "Log into the VM, format the data disk with ext4, mount it at /data.",
+            "Create a test file with content 'Important data before snapshot' at /data/test.txt.",
+            "Create a VirtualMachineSnapshot named 'snapshot-test-vm-snap1' of the running VM.",
+            "Wait for the snapshot to reach Ready state.",
+            "Modify the test file content to 'Data after snapshot'.",
+            "Create a VirtualMachineRestore named 'snapshot-test-vm-restore1' to restore the VM from the snapshot.",
+            "Verify the restore completes and the original file content is restored."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task10",
+      "title": "Clone VM and configure for different environment",
+      "solution": "# 1. Create namespace\noc create namespace vm-clone-ns\n\n# 2. Create source VM\noc create -f - -n vm-clone-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: production-vm\n  labels:\n    environment: production\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: production-vm\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: datadisk\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 4Gi\n            cpu: 2\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.3\n      - name: datadisk\n        dataVolume:\n          name: production-data-dv\n---\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: production-data-dv\nspec:\n  source:\n    blank: {}\n  pvc:\n    accessModes:\n      - ReadWriteOnce\n    resources:\n      requests:\n        storage: 25Gi\nEOF\n\n# 3. Wait for source VM\noc wait --for=condition=Ready vmi/production-vm -n vm-clone-ns --timeout=300s\n\n# 4. Stop source VM before cloning\noc virt stop production-vm -n vm-clone-ns\noc wait --for=jsonpath='{.status.printableStatus}'=Stopped vm/production-vm -n vm-clone-ns --timeout=120s\n\n# 5. Clone the VM\noc create -f - -n vm-clone-ns <<EOF\napiVersion: clone.kubevirt.io/v1alpha1\nkind: VirtualMachineClone\nmetadata:\n  name: production-to-staging-clone\nspec:\n  source:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: production-vm\n  target:\n    apiGroup: kubevirt.io\n    kind: VirtualMachine\n    name: staging-vm\n  labelFilters:\n    - \"*\"\n  annotationFilters:\n    - \"*\"\n  templateLabelFilters:\n    - \"*\"\n  templateAnnotationFilters:\n    - \"*\"\nEOF\n\n# 6. Wait for clone to complete\noc wait --for=condition=Succeeded vmclone/production-to-staging-clone -n vm-clone-ns --timeout=600s\n\n# 7. Update staging VM labels\noc label vm staging-vm environment=staging --overwrite -n vm-clone-ns\noc label vm staging-vm environment- -n vm-clone-ns\noc label vm staging-vm environment=staging -n vm-clone-ns\n\n# 8. Start both VMs\noc virt start production-vm -n vm-clone-ns\noc virt start staging-vm -n vm-clone-ns\n\n# 9. Verify both VMs are running with different MAC addresses\noc get vmi production-vm -n vm-clone-ns -o jsonpath='{.status.interfaces[0].mac}'\noc get vmi staging-vm -n vm-clone-ns -o jsonpath='{.status.interfaces[0].mac}'",
+      "sections": [
+        {
+          "title": "VM Cloning Operations",
+          "notice": "Clone a production VM to create a staging environment with appropriate modifications. Work in namespace 'vm-clone-ns'.",
+          "subtasks": [
+            "Create a namespace named 'vm-clone-ns'.",
+            "Create a VM named 'production-vm' with label 'environment=production' and a 25Gi data disk.",
+            "Allocate 4Gi RAM and 2 CPUs to the production VM.",
+            "Wait for the production VM to be running, then stop it safely.",
+            "Create a VirtualMachineClone named 'production-to-staging-clone' to clone 'production-vm' to 'staging-vm'.",
+            "Wait for the clone operation to complete successfully.",
+            "Modify the 'staging-vm' to have label 'environment=staging' instead of 'environment=production'.",
+            "Start both the production and staging VMs.",
+            "Verify both VMs are running with different MAC addresses."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task11",
+      "title": "Configure VM live migration with node affinity",
+      "solution": "# 1. Create namespace\noc create namespace migration-ns\n\n# 2. Label worker nodes\nWORKER1=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[0].metadata.name}')\nWORKER2=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[1].metadata.name}')\n\noc label node $WORKER1 workload-type=compute\noc label node $WORKER2 workload-type=compute\n\n# 3. Create VM with node affinity\noc create -f - -n migration-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: migratable-vm\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: migratable-vm\n    spec:\n      affinity:\n        nodeAffinity:\n          requiredDuringSchedulingIgnoredDuringExecution:\n            nodeSelectorTerms:\n            - matchExpressions:\n              - key: workload-type\n                operator: In\n                values:\n                - compute\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: datadisk\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.3\n      - name: datadisk\n        persistentVolumeClaim:\n          claimName: migratable-data\n---\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: migratable-data\nspec:\n  accessModes:\n    - ReadWriteMany\n  resources:\n    requests:\n      storage: 15Gi\nEOF\n\n# 4. Wait for VM\noc wait --for=condition=Ready vmi/migratable-vm -n migration-ns --timeout=300s\n\n# 5. Get current node\nCURRENT_NODE=$(oc get vmi migratable-vm -n migration-ns -o jsonpath='{.status.nodeName}')\necho \"VM currently on: $CURRENT_NODE\"\n\n# 6. Initiate live migration\noc create -f - -n migration-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachineInstanceMigration\nmetadata:\n  name: migratable-vm-migration-1\nspec:\n  vmiName: migratable-vm\nEOF\n\n# 7. Monitor migration\noc get vmim migratable-vm-migration-1 -n migration-ns -w\n\n# 8. Verify migration completed\noc wait --for=condition=Succeeded vmim/migratable-vm-migration-1 -n migration-ns --timeout=300s\n\n# 9. Verify VM on different node\nNEW_NODE=$(oc get vmi migratable-vm -n migration-ns -o jsonpath='{.status.nodeName}')\necho \"VM now on: $NEW_NODE\"\necho \"Migration successful: $CURRENT_NODE -> $NEW_NODE\"",
+      "sections": [
+        {
+          "title": "Live Migration with Affinity Rules",
+          "notice": "Configure and perform live migration of a VM with node affinity constraints. Work in namespace 'migration-ns'.",
+          "subtasks": [
+            "Create a namespace named 'migration-ns'.",
+            "Label two worker nodes with 'workload-type=compute'.",
+            "Create a PVC named 'migratable-data' with ReadWriteMany access mode and 15Gi capacity.",
+            "Create a VM named 'migratable-vm' that requires scheduling on nodes with 'workload-type=compute' label.",
+            "Wait for the VM to be running and identify its current node.",
+            "Create a VirtualMachineInstanceMigration named 'migratable-vm-migration-1' to initiate live migration.",
+            "Monitor the migration process in real-time.",
+            "Verify the migration completes successfully with status 'Succeeded'.",
+            "Confirm the VM is now running on a different node while maintaining the affinity constraints."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task12",
+      "title": "Configure health probes and watchdog for VM reliability",
+      "solution": "# 1. Create namespace\noc create namespace health-probe-ns\n\n# 2. Create VM with comprehensive health checks\noc create -f - -n health-probe-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: monitored-app-vm\nspec:\n  running: true\n  runStrategy: Always\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: monitored-app-vm\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: cloudinitdisk\n          watchdog:\n            name: watchdog0\n            i6300esb:\n              action: reset\n        resources:\n          requests:\n            memory: 2Gi\n      readinessProbe:\n        httpGet:\n          port: 8080\n          path: /health\n        initialDelaySeconds: 120\n        periodSeconds: 10\n        timeoutSeconds: 5\n        successThreshold: 1\n        failureThreshold: 3\n      livenessProbe:\n        tcpSocket:\n          port: 8080\n        initialDelaySeconds: 180\n        periodSeconds: 20\n        timeoutSeconds: 10\n        failureThreshold: 3\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.3\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            yum_repos:\n              custom-rhel9-repo:\n                name: Custom RHEL9 Repository\n                baseurl: http://custom-repo.ocp.local/rhel9/baseos\n                enabled: true\n                gpgcheck: false\n            packages:\n              - python3\n              - python3-pip\n            write_files:\n            - path: /opt/healthapp.py\n              content: |\n                from http.server import HTTPServer, BaseHTTPRequestHandler\n                class HealthHandler(BaseHTTPRequestHandler):\n                    def do_GET(self):\n                        if self.path == '/health':\n                            self.send_response(200)\n                            self.send_header('Content-type', 'text/plain')\n                            self.end_headers()\n                            self.wfile.write(b'OK')\n                        else:\n                            self.send_response(404)\n                            self.end_headers()\n                httpd = HTTPServer(('0.0.0.0', 8080), HealthHandler)\n                httpd.serve_forever()\n            - path: /etc/systemd/system/healthapp.service\n              content: |\n                [Unit]\n                Description=Health Check Application\n                After=network.target\n                [Service]\n                Type=simple\n                ExecStart=/usr/bin/python3 /opt/healthapp.py\n                Restart=always\n                [Install]\n                WantedBy=multi-user.target\n            runcmd:\n              - systemctl daemon-reload\n              - systemctl enable --now healthapp\n              - firewall-cmd --permanent --add-port=8080/tcp\n              - firewall-cmd --reload\nEOF\n\n# 3. Wait for VM\noc wait --for=condition=Ready vmi/monitored-app-vm -n health-probe-ns --timeout=600s\n\n# 4. Verify health probes\noc get vmi monitored-app-vm -n health-probe-ns -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}'\n\n# 5. Test watchdog functionality by simulating hang\n# virtctl console monitored-app-vm -n health-probe-ns\n# sudo systemctl stop healthapp\n# Wait for probes to fail and VM to restart",
+      "sections": [
+        {
+          "title": "Health Probes and Watchdog Configuration",
+          "notice": "Configure comprehensive health monitoring for a VM including readiness/liveness probes and watchdog. Use custom repository: http://custom-repo.ocp.local/rhel9/baseos. Work in namespace 'health-probe-ns'.",
+          "subtasks": [
+            "Create a namespace named 'health-probe-ns'.",
+            "Create a VM named 'monitored-app-vm' with runStrategy set to 'Always'.",
+            "Configure a watchdog device (i6300esb) with reset action.",
+            "Use cloud-init to install python3 from custom repository and create a health check HTTP server on port 8080.",
+            "Configure the health server to respond with 'OK' on /health endpoint.",
+            "Create a systemd service to run the health check application.",
+            "Configure readiness probe with HTTP GET on port 8080, path /health, initial delay 120s, period 10s.",
+            "Configure liveness probe with TCP socket on port 8080, initial delay 180s, period 20s.",
+            "Set failure threshold to 3 for both probes.",
+            "Verify the VM reaches Ready state after health checks pass."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task13",
+      "title": "Prepare node for maintenance and drain workloads",
+      "solution": "# 1. Create namespace for test workloads\noc create namespace node-maintenance-ns\n\n# 2. Create multiple VMs on target node\nfor i in {1..3}; do\noc create -f - -n node-maintenance-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: workload-vm-$i\nspec:\n  running: true\n  template:\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n        resources:\n          requests:\n            memory: 1Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.3\nEOF\ndone\n\n# 3. Wait for all VMs\noc wait --for=condition=Ready vmi/workload-vm-1 -n node-maintenance-ns --timeout=300s\noc wait --for=condition=Ready vmi/workload-vm-2 -n node-maintenance-ns --timeout=300s\noc wait --for=condition=Ready vmi/workload-vm-3 -n node-maintenance-ns --timeout=300s\n\n# 4. Identify node with most VMs\nTARGET_NODE=$(oc get vmi -n node-maintenance-ns -o jsonpath='{.items[0].status.nodeName}')\necho \"Target node for maintenance: $TARGET_NODE\"\n\n# 5. Create NodeMaintenance resource\noc create -f - <<EOF\napiVersion: nodemaintenance.kubevirt.io/v1beta1\nkind: NodeMaintenance\nmetadata:\n  name: maintenance-$TARGET_NODE\nspec:\n  nodeName: $TARGET_NODE\n  reason: \"Scheduled maintenance for hardware upgrade\"\nEOF\n\n# 6. Monitor node maintenance\noc get nodemaintenance maintenance-$TARGET_NODE -w\n\n# 7. Verify node is cordoned\noc get node $TARGET_NODE | grep SchedulingDisabled\n\n# 8. Verify VMs migrated away\noc get vmi -n node-maintenance-ns -o wide\n\n# 9. Verify no VMs on target node\noc get vmi --all-namespaces --field-selector spec.nodeName=$TARGET_NODE\n\n# 10. After maintenance, remove NodeMaintenance\n# oc delete nodemaintenance maintenance-$TARGET_NODE",
+      "sections": [
+        {
+          "title": "Node Maintenance and VM Evacuation",
+          "notice": "Prepare a node for maintenance by safely evacuating all VMs using NodeMaintenance CR. Work in namespace 'node-maintenance-ns' for test workloads.",
+          "subtasks": [
+            "Create a namespace named 'node-maintenance-ns'.",
+            "Deploy three test VMs named 'workload-vm-1', 'workload-vm-2', and 'workload-vm-3'.",
+            "Wait for all VMs to reach Running state.",
+            "Identify the node hosting at least one of the VMs.",
+            "Create a NodeMaintenance resource targeting that node with reason 'Scheduled maintenance for hardware upgrade'.",
+            "Monitor the NodeMaintenance status until it shows the node is in maintenance mode.",
+            "Verify the node is marked as SchedulingDisabled (cordoned).",
+            "Verify all VMs have been live migrated away from the target node.",
+            "Confirm no VMIs remain running on the maintenance node.",
+            "Document the process to remove NodeMaintenance resource after maintenance completion."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task14",
+      "title": "Configure NodePort service and create custom route for VM application",
+      "solution": "# 1. Create namespace\noc create namespace nodeport-route-ns\n\n# 2. Create VM with application\noc create -f - -n nodeport-route-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: api-server-vm\n  labels:\n    app: api-service\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: api-server-vm\n        app: api-service\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: containerdisk\n          - disk:\n              bus: virtio\n            name: cloudinitdisk\n        resources:\n          requests:\n            memory: 2Gi\n      volumes:\n      - name: containerdisk\n        containerDisk:\n          image: quay.io/containerdisks/rhel:9.3\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            yum_repos:\n              custom-rhel9-repo:\n                name: Custom RHEL9 Repository\n                baseurl: http://custom-repo.ocp.local/rhel9/baseos\n                enabled: true\n                gpgcheck: false\n            packages:\n              - nginx\n            write_files:\n            - path: /usr/share/nginx/html/index.html\n              content: |\n                <!DOCTYPE html>\n                <html><head><title>API Service</title></head>\n                <body><h1>NodePort API Service Running</h1>\n                <p>Build: v1.0.0</p></body></html>\n            - path: /usr/share/nginx/html/api/status\n              content: '{\"status\":\"healthy\",\"version\":\"1.0.0\"}'\n            runcmd:\n              - systemctl enable --now nginx\n              - firewall-cmd --permanent --add-service=http\n              - firewall-cmd --reload\nEOF\n\n# 3. Wait for VM\noc wait --for=condition=Ready vmi/api-server-vm -n nodeport-route-ns --timeout=300s\n\n# 4. Create NodePort service\noc create -f - -n nodeport-route-ns <<EOF\napiVersion: v1\nkind: Service\nmetadata:\n  name: api-nodeport-svc\nspec:\n  type: NodePort\n  selector:\n    kubevirt.io/domain: api-server-vm\n  ports:\n  - name: http\n    port: 80\n    targetPort: 80\n    nodePort: 30080\n    protocol: TCP\nEOF\n\n# 5. Get NodePort details\noc get svc api-nodeport-svc -n nodeport-route-ns\nNODE_IP=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[0].status.addresses[?(@.type==\"InternalIP\")].address}')\necho \"Access via: http://$NODE_IP:30080\"\n\n# 6. Create ClusterIP service for Route\noc expose vm api-server-vm --name=api-cluster-svc --port=80 -n nodeport-route-ns\n\n# 7. Create custom Route\noc create -f - -n nodeport-route-ns <<EOF\napiVersion: route.openshift.io/v1\nkind: Route\nmetadata:\n  name: api-custom-route\nspec:\n  host: api-service.apps.ocp.local\n  to:\n    kind: Service\n    name: api-cluster-svc\n    weight: 100\n  port:\n    targetPort: 80\n  tls:\n    termination: edge\n    insecureEdgeTerminationPolicy: Redirect\n  wildcardPolicy: None\nEOF\n\n# 8. Get Route URL\noc get route api-custom-route -n nodeport-route-ns -o jsonpath='{.spec.host}'\n\n# 9. Test access\ncurl -k https://$(oc get route api-custom-route -n nodeport-route-ns -o jsonpath='{.spec.host}')",
+      "sections": [
+        {
+          "title": "NodePort and Custom Route Configuration",
+          "notice": "Configure both NodePort and Route-based access for a VM application. Use custom repository: http://custom-repo.ocp.local/rhel9/baseos. Work in namespace 'nodeport-route-ns'. To verify the route, use this test container: 'oc run route-test --image=registry.access.redhat.com/ubi8/ubi:latest --rm -it -- curl -k https://api-service.apps.ocp.local'",
+          "subtasks": [
+            "Create a namespace named 'nodeport-route-ns'.",
+            "Create a VM named 'api-server-vm' with nginx installed from custom repository.",
+            "Configure cloud-init to create a custom index.html page showing 'NodePort API Service Running'.",
+            "Create an API endpoint at /api/status returning JSON status.",
+            "Create a NodePort service named 'api-nodeport-svc' exposing port 80 on NodePort 30080.",
+            "Verify NodePort service is accessible on worker node IP.",
+            "Create a ClusterIP service named 'api-cluster-svc' for Route usage.",
+            "Create a Route named 'api-custom-route' with custom host 'api-service.apps.ocp.local'.",
+            "Configure the Route with edge TLS termination and redirect insecure traffic.",
+            "Test both NodePort and Route access to verify the application is reachable."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task15",
+      "title": "Import OVA virtual machine and configure external access",
+      "solution": "# 1. Create namespace\noc create namespace vm-import-ns\n\n# 2. Create secret for OVA source (if using authenticated source)\noc create secret generic ova-source-secret \\\n  --from-literal=accessKeyId=dummy-access-key \\\n  --from-literal=secretAccessKey=dummy-secret-key \\\n  -n vm-import-ns\n\n# 3. Create DataVolume to import OVA\noc create -f - -n vm-import-ns <<EOF\napiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n  name: imported-vm-dv\nspec:\n  source:\n    http:\n      url: \"https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2\"\n  pvc:\n    accessModes:\n      - ReadWriteOnce\n    resources:\n      requests:\n        storage: 20Gi\nEOF\n\n# 4. Wait for import to complete\noc wait --for=condition=Ready dv/imported-vm-dv -n vm-import-ns --timeout=1200s\n\n# 5. Create VM from imported disk\noc create -f - -n vm-import-ns <<EOF\napiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n  name: imported-vm\n  labels:\n    app: imported-application\nspec:\n  running: true\n  template:\n    metadata:\n      labels:\n        kubevirt.io/domain: imported-vm\n        app: imported-application\n    spec:\n      domain:\n        devices:\n          disks:\n          - disk:\n              bus: virtio\n            name: rootdisk\n          - disk:\n              bus: virtio\n            name: cloudinitdisk\n          interfaces:\n          - name: default\n            masquerade: {}\n        resources:\n          requests:\n            memory: 4Gi\n            cpu: 2\n      networks:\n      - name: default\n        pod: {}\n      volumes:\n      - name: rootdisk\n        dataVolume:\n          name: imported-vm-dv\n      - name: cloudinitdisk\n        cloudInitNoCloud:\n          userData: |\n            #cloud-config\n            user: centos\n            password: openshift123\n            chpasswd: { expire: False }\n            ssh_pwauth: True\n            yum_repos:\n              custom-rhel9-repo:\n                name: Custom Repository\n                baseurl: http://custom-repo.ocp.local/rhel9/baseos\n                enabled: true\n                gpgcheck: false\n            packages:\n              - httpd\n            runcmd:\n              - systemctl enable --now httpd\n              - echo '<h1>Imported VM - Web Server</h1>' > /var/www/html/index.html\n              - firewall-cmd --permanent --add-service=http\n              - firewall-cmd --reload\nEOF\n\n# 6. Wait for VM to be ready\noc wait --for=condition=Ready vmi/imported-vm -n vm-import-ns --timeout=600s\n\n# 7. Create service for external access\noc create -f - -n vm-import-ns <<EOF\napiVersion: v1\nkind: Service\nmetadata:\n  name: imported-vm-svc\nspec:\n  type: LoadBalancer\n  selector:\n    kubevirt.io/domain: imported-vm\n  ports:\n  - name: http\n    port: 80\n    targetPort: 80\n    protocol: TCP\n  loadBalancerIP: 192.168.100.210\nEOF\n\n# 8. Create Route for HTTPS access\noc expose service imported-vm-svc --name=imported-vm-route -n vm-import-ns\n\n# 9. Verify external access\noc get svc imported-vm-svc -n vm-import-ns\noc get route imported-vm-route -n vm-import-ns\n\n# 10. Test access\nROUTE_HOST=$(oc get route imported-vm-route -n vm-import-ns -o jsonpath='{.spec.host}')\ncurl http://$ROUTE_HOST",
+      "sections": [
+        {
+          "title": "OVA Import and External Access Configuration",
+          "notice": "Import a virtual machine from OVA/qcow2 format and configure multiple methods of external access. Use custom repository: http://custom-repo.ocp.local/rhel9/baseos. Work in namespace 'vm-import-ns'. To verify route access, use test pod: 'oc run curl-test --image=curlimages/curl:latest --rm -it -- sh' then curl the route URL.",
+          "subtasks": [
+            "Create a namespace named 'vm-import-ns'.",
+            "Create a DataVolume named 'imported-vm-dv' to import a VM image from HTTP source (CentOS Stream 9 cloud image).",
+            "Allocate 20Gi storage for the imported disk.",
+            "Wait for the import operation to complete (this may take several minutes).",
+            "Create a VM named 'imported-vm' using the imported DataVolume as root disk.",
+            "Allocate 4Gi memory and 2 CPUs to the imported VM.",
+            "Configure cloud-init to set credentials (user: centos, password: openshift123).",
+            "Use cloud-init to install and configure httpd from the custom repository.",
+            "Create a LoadBalancer service named 'imported-vm-svc' requesting IP 192.168.100.210 from MetalLB.",
+            "Create a Route named 'imported-vm-route' exposing the LoadBalancer service.",
+            "Verify both LoadBalancer IP and Route hostname are accessible.",
+            "Test HTTP access to the web server running on the imported VM."
+          ]
+        }
+      ]
+    }
+  ]
+}
+

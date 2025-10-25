@@ -14,6 +14,7 @@ import mock11 from './mocks/ex316-mock11.json';
 import mock12 from './mocks/ex316-mock12.json';
 import mock13 from './mocks/ex316-mock13.json';
 import mock14 from './mocks/ex316-mock14.json';
+import mock15 from './mocks/ex316-mock15.json';
 
 
 
@@ -32,6 +33,7 @@ export const examDataMap = {
   [mock12.examId]: mock12, 
   [mock13.examId]: mock13, 
   [mock14.examId]: mock14, 
+  [mock15.examId]: mock15, 
 };
 
-export const allExams = [mock1, mock2, mock3, mock4, mock5, mock6, mock7, mock8, mock9, mock10, mock11, mock12, mock13, mock14];
+export const allExams = [mock1, mock2, mock3, mock4, mock5, mock6, mock7, mock8, mock9, mock10, mock11, mock12, mock13, mock14, mock15];
