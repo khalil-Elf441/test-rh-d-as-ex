@@ -1,0 +1,10 @@
+---
+- name: Select a node
+  command: echo "NODE_TO_DRAIN=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[0].metadata.name}')"
+  register: node_to_drain_var
+
+- name: Taint the node
+  command: oc adm taint node {{ node_to_drain_var.stdout }} key=maintenance:NoSchedule
+
+- name: Drain the node
+  command: oc adm drain {{ node_to_drain_var.stdout }} --ignore-daemonsets --delete-local-data

@@ -1,0 +1,31 @@
+---
+- name: Set CPU and Memory, and enable CPU Pinning
+  command: >
+    oc patch vm db-server -n db-app-ns --type=json -p='[{"op": "replace", "path": "/spec/template/spec/domain/cpu/cores", "value": 2}, {"op": "replace", "path": "/spec/template/spec/domain/resources/requests/memory", "value": "4Gi"}, {"op": "add", "path": "/spec/template/spec/domain/cpu/dedicatedCpuPlacement", "value": true}]'
+
+- name: Create a PVC for the new disk
+  command: >
+    oc create -f - -n db-app-ns <<EOF
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: data-disk-pvc
+    spec:
+      accessModes: [ReadWriteOnce]
+      resources:
+        requests:
+          storage: 10Gi
+    EOF
+
+- name: Stop VM to add disk
+  command: oc virt stop db-server -n db-app-ns
+
+- name: Wait for VM to be stopped
+  command: oc wait --for=condition=Ready=false vm/db-server -n db-app-ns --timeout=120s
+
+- name: Add a new 10Gi SATA disk
+  command: >
+    oc patch vm db-server -n db-app-ns --type=json -p='[{"op": "add", "path": "/spec/template/spec/domain/devices/disks/-", "value": {"name": "data-disk", "disk": {"bus": "sata"}}}, {"op": "add", "path": "/spec/template/spec/volumes/-", "value": {"name": "data-disk", "persistentVolumeClaim": {"claimName": "data-disk-pvc"}}}]'
+
+- name: Start VM
+  command: oc virt start db-server -n db-app-ns

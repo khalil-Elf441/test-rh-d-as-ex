@@ -1,0 +1,12 @@
+---
+- name: Create Service
+  command: oc expose vm db-server --name=db-svc --port=3306 --target-port=3306 -n db-app-ns
+
+- name: Create User
+  command: oc create user db-auditor
+
+- name: Create Role
+  command: oc create role vm-viewer-role --verb=get,list --resource=virtualmachines -n db-app-ns
+
+- name: Bind Role
+  command: oc create rolebinding db-auditor-binding --role=vm-viewer-role --user=db-auditor -n db-app-ns

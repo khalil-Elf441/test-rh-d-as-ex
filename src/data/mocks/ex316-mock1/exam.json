@@ -3,7 +3,7 @@
   "title": "OpenShift Virtualization Specialist (EX316) — Mock 1: Final Version",
   "description": "A comprehensive 14-task exam covering a wide range of objectives including deployment, networking, storage, and VM lifecycle management.",
   "timeLimit": "4h",
-  "prerequisites": "# This script should be run once before starting the exam.\n# It simulates the base environment provided to the candidate.\n\necho \"Creating prerequisite resources for Mock 1...\"\n\n# This mock assumes a default storage class is available.\n# It also assumes a RHEL9 template is available, which is standard.\n# No complex cluster-wide resources are needed for this mock.\n\necho \"Prerequisite setup complete. You can now start the exam.\"\n",
+  "prerequisites": "ansible-playbook -i prerequisites/ansible/inventory/hosts prerequisites/ansible/playbook.yml",
   "tasks": [
     {
       "id": "task01",
@@ -273,7 +273,7 @@
     {
       "id": "task16",
       "title": "Advanced VM Configuration",
-      "solution": "# Solution for task 16",
+      "solution": "# 1. Set CPU and Memory, and enable CPU Pinning\noc patch vm db-server -n db-app-ns --type=json -p='[{\"op\": \"replace\", \"path\": \"/spec/template/spec/domain/cpu/cores\", \"value\": 2}, {\"op\": \"replace\", \"path\": \"/spec/template/spec/domain/resources/requests/memory\", \"value\": \"4Gi\"}, {\"op\": \"add\", \"path\": \"/spec/template/spec/domain/cpu/dedicatedCpuPlacement\", \"value\": true}]'\n\n# 2. Verify the changes\noc get vm db-server -n db-app-ns -o jsonpath=\"{.spec.template.spec.domain.cpu}\"\noc get vm db-server -n db-app-ns -o jsonpath=\"{.spec.template.spec.domain.resources.requests.memory}\"\n\n# 3. Create a PVC for the new disk\noc create -f - -n db-app-ns <<EOF\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: data-disk-pvc\nspec:\n  accessModes: [ReadWriteOnce]\n  resources:\n    requests:\n      storage: 10Gi\nEOF\n\n# 4. Add a new 10Gi SATA disk\n# Note: This requires the VM to be stopped to add a disk.\noc virt stop db-server -n db-app-ns\noc wait --for=condition=Ready=false vm/db-server -n db-app-ns --timeout=120s\noc patch vm db-server -n db-app-ns --type=json -p='[{\"op\": \"add\", \"path\": \"/spec/template/spec/domain/devices/disks/-\", \"value\": {\"name\": \"data-disk\", \"disk\": {\"bus\": \"sata\"}}}, {\"op\": \"add\", \"path\": \"/spec/template/spec/volumes/-\", \"value\": {\"name\": \"data-disk\", \"persistentVolumeClaim\": {\"claimName\": \"data-disk-pvc\"}}}]'\noc virt start db-server -n db-app-ns\n\n# 5. Format and mount the disk inside the VM\n# oc rsh db-server -n db-app-ns\n# mkfs.xfs /dev/sdb\n# mkdir /data\n# mount /dev/sdb /data\n# echo '/dev/sdb /data xfs defaults 0 0' >> /etc/fstab",
       "sections": [
         {
           "title": "Section 1: CPU and Memory",

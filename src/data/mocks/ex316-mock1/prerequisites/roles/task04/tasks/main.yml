@@ -1,0 +1,38 @@
+---
+- name: Create web-app-ns namespace
+  k8s:
+    name: "web-app-ns"
+    api_version: v1
+    kind: Project
+    state: present
+
+- name: Create Template
+  command: >
+    oc create -f - <<EOF
+    apiVersion: template.openshift.io/v1
+    kind: Template
+    metadata:
+      name: httpd-template
+      namespace: web-app-ns
+    objects:
+    - apiVersion: kubevirt.io/v1
+      kind: VirtualMachine
+      metadata:
+        name: "${NAME}"
+      spec:
+        template:
+          spec:
+            domain: {}
+            volumes:
+            - name: cloudinitdisk
+              cloudInitNoCloud:
+                userData: |
+                  #cloud-config
+                  packages:
+                    - httpd
+                  runcmd:
+                    - [ systemctl, enable, --now, httpd ]
+    EOF
+
+- name: Deploy from Template
+  command: oc new-app --template=httpd-template --param=NAME=web-server -n web-app-ns

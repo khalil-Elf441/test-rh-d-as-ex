@@ -1,0 +1,2 @@
+[openshift] 
+localhost ansible_connection=local

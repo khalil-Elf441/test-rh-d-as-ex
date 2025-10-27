@@ -1,0 +1,2 @@
+# 1. Add Readiness Probe
+oc patch vm web-server -n web-app-ns --type=json -p '[{"op": "add", "path": "/spec/template/spec/domain/devices/probes/-", "value": {"readinessProbe": {"httpGet": {"port": 80, "path": "/"}, "failureThreshold": 3}}}]'

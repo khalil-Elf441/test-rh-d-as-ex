@@ -1,0 +1,45 @@
+---
+- name: Create multi-net-ns namespace
+  k8s:
+    name: "multi-net-ns"
+    api_version: v1
+    kind: Project
+    state: present
+
+- name: Create NAD
+  command: >
+    oc create -f - -n multi-net-ns <<EOF
+    apiVersion: "k8s.cni.cncf.io/v1"
+    kind: NetworkAttachmentDefinition
+    metadata:
+      name: internal-net
+    spec:
+      config: |
+        {"cniVersion": "0.3.1", "name": "internal-net", "type": "cnv-bridge", "bridge": "br0", "vlan": 100}
+    EOF
+
+- name: Create VM with multiple interfaces
+  command: >
+    oc create -f - -n multi-net-ns <<EOF
+    apiVersion: kubevirt.io/v1
+    kind: VirtualMachine
+    metadata:
+      name: router-vm
+    spec:
+      template:
+        spec:
+          domain: {}
+          networks:
+          - name: default
+            pod: {}
+          - name: internal-net
+            multus:
+              networkName: internal-net
+          domain:
+            devices:
+              interfaces:
+              - name: default
+                masquerade: {}
+              - name: internal-net
+                bridge: {}
+    EOF

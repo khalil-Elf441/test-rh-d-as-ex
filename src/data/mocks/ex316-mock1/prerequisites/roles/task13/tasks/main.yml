@@ -1,0 +1,6 @@
+---
+- name: Create Service
+  command: oc expose vm web-server-staging --name=staging-svc --port=80 --target-port=80 -n web-app-ns
+
+- name: Create Route
+  command: oc create route edge --service=staging-svc --port=80 -n web-app-ns

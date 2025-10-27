@@ -1,0 +1,13 @@
+---
+- name: Create db-app-ns namespace
+  k8s:
+    name: "db-app-ns"
+    api_version: v1
+    kind: Project
+    state: present
+
+- name: Create VM from template
+  command: oc process -n openshift rhel9 --param NAME=db-server | oc create -n db-app-ns -f -
+
+- name: Wait for VM to be running
+  command: oc wait --for=condition=Ready vmi/db-server -n db-app-ns --timeout=300s

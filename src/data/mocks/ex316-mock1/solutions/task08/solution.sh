@@ -1,0 +1,13 @@
+# 1. Create Clone
+oc create -f - -n web-app-ns <<EOF
+apiVersion: snapshot.kubevirt.io/v1alpha1
+kind: VirtualMachineClone
+metadata:
+  name: web-server-staging
+spec:
+  source:
+    kind: VirtualMachine
+    name: web-server
+  target:
+    name: web-server-staging
+EOF

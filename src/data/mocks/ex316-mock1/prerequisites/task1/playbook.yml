@@ -1,0 +1,4 @@
+---
+- hosts: openshift
+  gather_facts: no
+  roles: []

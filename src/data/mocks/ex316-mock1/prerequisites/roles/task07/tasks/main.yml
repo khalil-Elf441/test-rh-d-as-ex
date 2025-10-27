@@ -1,0 +1,6 @@
+---
+- name: Initiate Migration
+  command: oc virt migrate db-server -n db-app-ns
+
+- name: Monitor Migration
+  command: oc get vmim -n db-app-ns -w

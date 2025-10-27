@@ -1,0 +1,28 @@
+---
+- name: Create Block PVC
+  command: >
+    oc create -f - -n db-app-ns <<EOF
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: db-data-disk
+    spec:
+      accessModes: [ReadWriteOnce]
+      volumeMode: Block
+      resources:
+        requests:
+          storage: 20Gi
+    EOF
+
+- name: Stop VM to add disk
+  command: oc virt stop db-server -n db-app-ns
+
+- name: Wait for VM to be stopped
+  command: oc wait --for=condition=Ready=false vm/db-server -n db-app-ns --timeout=120s
+
+- name: Add volume to VM
+  command: >
+    oc patch vm db-server -n db-app-ns --type=json -p '[{"op": "add", "path": "/spec/template/spec/domain/devices/disks/-", "value": {"name": "dbdata", "disk": {"bus": "virtio"}}}, {"op": "add", "path": "/spec/template/spec/volumes/-", "value": {"name": "dbdata", "persistentVolumeClaim": {"claimName": "db-data-disk"}}}]'
+
+- name: Start VM
+  command: oc virt start db-server -n db-app-ns

@@ -1,0 +1,5 @@
+---
+- hosts: openshift
+  gather_facts: no
+  roles:
+    - role: task01

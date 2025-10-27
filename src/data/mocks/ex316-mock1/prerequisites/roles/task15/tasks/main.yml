@@ -1,0 +1,69 @@
+---
+- name: Create migrated-vm-ns namespace
+  k8s:
+    name: "migrated-vm-ns"
+    api_version: v1
+    kind: Project
+    state: present
+
+- name: Install Operator
+  command: echo "Please install the 'Migration Toolkit for Virtualization' Operator from OperatorHub"
+
+- name: Create Provider Secret and CR
+  command: >
+    oc create secret generic provider-secret --from-literal=user=provider-user --from-literal=password=provider-pass --from-literal=url=https://provider.example.com/sdk -n migrated-vm-ns
+
+- name: Create Provider CR
+  command: >
+    oc create -f - -n migrated-vm-ns <<EOF
+    apiVersion: forklift.konveyor.io/v1beta1
+    kind: Provider
+    metadata:
+      name: external-provider
+    spec:
+      type: vsphere
+      url: https://provider.example.com/sdk
+      secret:
+        name: provider-secret
+        namespace: migrated-vm-ns
+    EOF
+
+- name: Create Plan
+  command: >
+    oc create -f - -n migrated-vm-ns <<EOF
+    apiVersion: forklift.konveyor.io/v1beta1
+    kind: Plan
+    metadata:
+      name: vm-migration-plan
+    spec:
+      provider:
+        source:
+          name: external-provider
+        destination:
+          name: host
+      map:
+        network:
+          - source:
+              name: "VM Network"
+            destination:
+              name: pod
+        storage:
+          - source:
+              name: "datastore1"
+            destination:
+              storageClass: <default-storage-class>
+      vms:
+      - name: vm-to-migrate
+    EOF
+
+- name: Create Migration
+  command: >
+    oc create -f - -n migrated-vm-ns <<EOF
+    apiVersion: forklift.konveyor.io/v1beta1
+    kind: Migration
+    metadata:
+      name: vm-migration
+    spec:
+      plan:
+        name: vm-migration-plan
+    EOF

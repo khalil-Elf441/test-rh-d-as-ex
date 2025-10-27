@@ -1,0 +1,45 @@
+---
+- name: Create DataVolume
+  command: >
+    oc create -f - -n default <<EOF
+    apiVersion: cdi.kubevirt.io/v1beta1
+    kind: DataVolume
+    metadata:
+      name: cirros-dv
+    spec:
+      source:
+        http:
+          url: https://download.cirros-cloud.net/0.5.2/cirros-0.5.2-x86_64-disk.img
+      pvc:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+    EOF
+
+- name: Create VM
+  command: >
+    oc create -f - -n default <<EOF
+    apiVersion: kubevirt.io/v1
+    kind: VirtualMachine
+    metadata:
+      name: vm-from-cirros-qcow2
+    spec:
+      running: true
+      template:
+        spec:
+          domain:
+            devices:
+              disks:
+              - name: rootdisk
+                disk:
+                  bus: virtio
+            resources:
+              requests:
+                memory: 1Gi
+          volumes:
+          - name: rootdisk
+            dataVolume:
+              name: cirros-dv
+    EOF
